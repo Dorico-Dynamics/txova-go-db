@@ -84,7 +84,7 @@ func (s *SessionStore) sessionKey(sessionID string) string {
 
 // userSessionsKey builds the user sessions index key.
 func (s *SessionStore) userSessionsKey(userID string) string {
-	return "user:sessions:" + userID
+	return s.keyPrefix + ":user:sessions:" + userID
 }
 
 // generateSessionID generates a unique session ID.

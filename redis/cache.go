@@ -267,7 +267,11 @@ func (c *Cache) MGet(ctx context.Context, keys ...string) (map[string][]byte, er
 			if str, ok := results[i].(string); ok {
 				values[key] = []byte(str)
 				hits++
+			} else {
+				values[key] = nil
 			}
+		} else {
+			values[key] = nil
 		}
 	}
 

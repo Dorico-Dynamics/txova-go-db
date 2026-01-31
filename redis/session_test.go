@@ -76,8 +76,9 @@ func TestSessionStore_Keys(t *testing.T) {
 
 	t.Run("userSessionsKey", func(t *testing.T) {
 		t.Parallel()
-		if got := store.userSessionsKey("user456"); got != "user:sessions:user456" {
-			t.Errorf("userSessionsKey() = %q, want %q", got, "user:sessions:user456")
+		// userSessionsKey should include the keyPrefix for namespace isolation
+		if got := store.userSessionsKey("user456"); got != "session:user:sessions:user456" {
+			t.Errorf("userSessionsKey() = %q, want %q", got, "session:user:sessions:user456")
 		}
 	})
 }

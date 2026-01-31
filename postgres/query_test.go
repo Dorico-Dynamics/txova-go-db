@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Dorico-Dynamics/txova-go-types/pagination"
@@ -171,6 +172,9 @@ func TestSelectBuilder_BasicQuery(t *testing.T) {
 				if err == nil {
 					t.Errorf("Build() expected error containing %q, got nil", tt.errContains)
 					return
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("Build() error = %q, want error containing %q", err.Error(), tt.errContains)
 				}
 				return
 			}

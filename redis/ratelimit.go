@@ -121,7 +121,8 @@ func (r *RateLimiter) AllowN(ctx context.Context, identifier string, n int64) (*
 		local n = tonumber(ARGV[3])
 
 		local current = redis.call("GET", key)
-		if current == false then
+		local is_new_window = (current == false)
+		if is_new_window then
 			current = 0
 		else
 			current = tonumber(current)
@@ -132,7 +133,10 @@ func (r *RateLimiter) AllowN(ctx context.Context, identifier string, n int64) (*
 
 		if current + n <= max then
 			redis.call("INCRBY", key, n)
-			redis.call("PEXPIRE", key, window)
+			-- Only set TTL when creating a new window to keep fixed window behavior
+			if is_new_window then
+				redis.call("PEXPIRE", key, window)
+			end
 			allowed = 1
 			remaining = max - current - n
 		end
