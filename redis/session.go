@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"time"
 )
@@ -87,14 +88,14 @@ func (s *SessionStore) userSessionsKey(userID string) string {
 	return s.keyPrefix + ":user:sessions:" + userID
 }
 
-// generateSessionID generates a unique session ID.
-func generateSessionID() string {
+// generateSessionID generates a cryptographically secure unique session ID.
+// Returns an error if random bytes cannot be generated.
+func generateSessionID() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to timestamp-based ID
-		return hex.EncodeToString([]byte(time.Now().String()))
+		return "", errors.New("failed to generate secure session ID: " + err.Error())
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
 }
 
 // Create creates a new session.
@@ -135,9 +136,15 @@ func WithSessionData(data any) SessionCreateOption {
 
 // CreateWithTTL creates a new session with a custom TTL.
 func (s *SessionStore) CreateWithTTL(ctx context.Context, userID string, ttl time.Duration, opts ...SessionCreateOption) (*Session, error) {
+	sessionID, err := generateSessionID()
+	if err != nil {
+		s.logger.Error("failed to generate session ID", "user_id", userID, "error", err)
+		return nil, err
+	}
+
 	now := time.Now()
 	session := &Session{
-		ID:         generateSessionID(),
+		ID:         sessionID,
 		UserID:     userID,
 		CreatedAt:  now,
 		LastActive: now,

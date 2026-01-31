@@ -102,7 +102,8 @@ jobs:
           fi
 
           if [ -z "$PREV_TAG" ]; then
-            COMMITS=$(git log --pretty=format:"- %s (%h)" | head -50)
+            # For initial releases, include all commits (no truncation)
+            COMMITS=$(git log --pretty=format:"- %s (%h)")
           else
             COMMITS=$(git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)")
           fi
@@ -139,9 +140,9 @@ jobs:
             NOTES="${NOTES}## Other Changes\n${OTHER}\n\n"
           fi
 
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "notes<<RELEASE_NOTES_EOF" >> $GITHUB_OUTPUT
           echo -e "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "RELEASE_NOTES_EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         if: steps.version.outputs.released == 'true'

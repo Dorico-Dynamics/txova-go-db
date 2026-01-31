@@ -86,8 +86,15 @@ func TestSessionStore_Keys(t *testing.T) {
 func TestGenerateSessionID(t *testing.T) {
 	t.Parallel()
 
-	id1 := generateSessionID()
-	id2 := generateSessionID()
+	id1, err1 := generateSessionID()
+	if err1 != nil {
+		t.Fatalf("generateSessionID() error = %v", err1)
+	}
+
+	id2, err2 := generateSessionID()
+	if err2 != nil {
+		t.Fatalf("generateSessionID() error = %v", err2)
+	}
 
 	if id1 == "" {
 		t.Error("generateSessionID() returned empty string")
