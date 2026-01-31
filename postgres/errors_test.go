@@ -309,12 +309,53 @@ func TestIsCode(t *testing.T) {
 	t.Parallel()
 
 	dbErr := New(CodeNotFound, "not found")
+	stdErr := errors.New("standard error")
 
 	if !IsCode(dbErr, CodeNotFound) {
 		t.Error("IsCode(dbErr, CodeNotFound) should be true")
 	}
 	if IsCode(dbErr, CodeDuplicate) {
 		t.Error("IsCode(dbErr, CodeDuplicate) should be false")
+	}
+	if IsCode(stdErr, CodeNotFound) {
+		t.Error("IsCode(stdErr, CodeNotFound) should be false for non-db error")
+	}
+	if IsCode(nil, CodeNotFound) {
+		t.Error("IsCode(nil, CodeNotFound) should be false")
+	}
+}
+
+func TestErrorCoreCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      *Error
+		wantCode coreerrors.Code
+	}{
+		{"NotFound", New(CodeNotFound, "not found"), coreerrors.CodeNotFound},
+		{"Duplicate", New(CodeDuplicate, "duplicate"), coreerrors.CodeConflict},
+		{"Connection", New(CodeConnection, "connection"), coreerrors.CodeServiceUnavailable},
+		{"Internal", New(CodeInternal, "internal"), coreerrors.CodeInternalError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.err.CoreCode(); got != tt.wantCode {
+				t.Errorf("CoreCode() = %v, want %v", got, tt.wantCode)
+			}
+		})
+	}
+}
+
+func TestCodeCoreCodeUnknown(t *testing.T) {
+	t.Parallel()
+
+	// Test that unknown codes default to CodeInternalError
+	unknownCode := Code("UNKNOWN_CODE")
+	if got := unknownCode.CoreCode(); got != coreerrors.CodeInternalError {
+		t.Errorf("CoreCode() for unknown code = %v, want %v", got, coreerrors.CodeInternalError)
 	}
 }
 

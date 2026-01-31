@@ -129,4 +129,3 @@ func (d *DeleteBuilder) Args() []any {
 	_, args, _ := d.Build()
 	return args
 }
-

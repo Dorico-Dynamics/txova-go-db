@@ -820,6 +820,296 @@ func TestHelperMethods(t *testing.T) {
 		}()
 		Select("invalid;table").MustBuild()
 	})
+
+	// InsertBuilder helper methods
+	t.Run("InsertBuilder SQL helper", func(t *testing.T) {
+		t.Parallel()
+		builder := Insert("users").Columns("name").Values("John")
+		sql := builder.SQL()
+		if sql != "INSERT INTO users (name) VALUES ($1)" {
+			t.Errorf("SQL() = %q, want %q", sql, "INSERT INTO users (name) VALUES ($1)")
+		}
+	})
+
+	t.Run("InsertBuilder Args helper", func(t *testing.T) {
+		t.Parallel()
+		builder := Insert("users").Columns("name").Values("John")
+		args := builder.Args()
+		if len(args) != 1 || args[0] != "John" {
+			t.Errorf("Args() = %v, want [John]", args)
+		}
+	})
+
+	t.Run("InsertBuilder MustBuild success", func(t *testing.T) {
+		t.Parallel()
+		sql, args := Insert("users").Columns("name").Values("John").MustBuild()
+		if sql != "INSERT INTO users (name) VALUES ($1)" {
+			t.Errorf("MustBuild() SQL = %q", sql)
+		}
+		if len(args) != 1 {
+			t.Errorf("MustBuild() args = %v", args)
+		}
+	})
+
+	t.Run("InsertBuilder MustBuild panics on error", func(t *testing.T) {
+		t.Parallel()
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("MustBuild() should have panicked")
+			}
+		}()
+		Insert("users").MustBuild() // No columns - should panic
+	})
+
+	// UpdateBuilder helper methods
+	t.Run("UpdateBuilder SQL helper", func(t *testing.T) {
+		t.Parallel()
+		builder := Update("users").Set("name", "John").Where("id = ?", 1)
+		sql := builder.SQL()
+		if sql != "UPDATE users SET name = $1 WHERE id = $2" {
+			t.Errorf("SQL() = %q, want %q", sql, "UPDATE users SET name = $1 WHERE id = $2")
+		}
+	})
+
+	t.Run("UpdateBuilder Args helper", func(t *testing.T) {
+		t.Parallel()
+		builder := Update("users").Set("name", "John").Where("id = ?", 1)
+		args := builder.Args()
+		if len(args) != 2 || args[0] != "John" || args[1] != 1 {
+			t.Errorf("Args() = %v, want [John, 1]", args)
+		}
+	})
+
+	t.Run("UpdateBuilder MustBuild success", func(t *testing.T) {
+		t.Parallel()
+		sql, args := Update("users").Set("name", "John").Where("id = ?", 1).MustBuild()
+		if sql != "UPDATE users SET name = $1 WHERE id = $2" {
+			t.Errorf("MustBuild() SQL = %q", sql)
+		}
+		if len(args) != 2 {
+			t.Errorf("MustBuild() args = %v", args)
+		}
+	})
+
+	t.Run("UpdateBuilder MustBuild panics on error", func(t *testing.T) {
+		t.Parallel()
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("MustBuild() should have panicked")
+			}
+		}()
+		Update("users").MustBuild() // No SET - should panic
+	})
+
+	// DeleteBuilder helper methods
+	t.Run("DeleteBuilder SQL helper", func(t *testing.T) {
+		t.Parallel()
+		builder := Delete("users").Where("id = ?", 1)
+		sql := builder.SQL()
+		if sql != "DELETE FROM users WHERE id = $1" {
+			t.Errorf("SQL() = %q, want %q", sql, "DELETE FROM users WHERE id = $1")
+		}
+	})
+
+	t.Run("DeleteBuilder Args helper", func(t *testing.T) {
+		t.Parallel()
+		builder := Delete("users").Where("id = ?", 1)
+		args := builder.Args()
+		if len(args) != 1 || args[0] != 1 {
+			t.Errorf("Args() = %v, want [1]", args)
+		}
+	})
+
+	t.Run("DeleteBuilder MustBuild success", func(t *testing.T) {
+		t.Parallel()
+		sql, args := Delete("users").Where("id = ?", 1).MustBuild()
+		if sql != "DELETE FROM users WHERE id = $1" {
+			t.Errorf("MustBuild() SQL = %q", sql)
+		}
+		if len(args) != 1 {
+			t.Errorf("MustBuild() args = %v", args)
+		}
+	})
+
+	t.Run("DeleteBuilder MustBuild panics on error", func(t *testing.T) {
+		t.Parallel()
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("MustBuild() should have panicked")
+			}
+		}()
+		Delete("invalid;table").MustBuild()
+	})
+}
+
+func TestAllowlistBuilders(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InsertWithAllowlist allowed columns", func(t *testing.T) {
+		t.Parallel()
+		sql, _, err := InsertWithAllowlist("users", "name", "email").
+			Columns("name", "email").
+			Values("John", "john@example.com").
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		want := "INSERT INTO users (name, email) VALUES ($1, $2)"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+	})
+
+	t.Run("InsertWithAllowlist disallowed column", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := InsertWithAllowlist("users", "name").
+			Columns("name", "password").
+			Values("John", "secret").
+			Build()
+		if err == nil {
+			t.Error("Build() expected error for disallowed column")
+		}
+	})
+
+	t.Run("InsertBuilder OnConflictConstraintDoNothing", func(t *testing.T) {
+		t.Parallel()
+		sql, _, err := Insert("users").
+			Columns("email", "name").
+			Values("john@example.com", "John").
+			OnConflictConstraintDoNothing("users_email_unique").
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		want := "INSERT INTO users (email, name) VALUES ($1, $2) ON CONFLICT ON CONSTRAINT users_email_unique DO NOTHING"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+	})
+
+	t.Run("UpdateWithAllowlist allowed columns", func(t *testing.T) {
+		t.Parallel()
+		sql, _, err := UpdateWithAllowlist("users", "name", "email").
+			Set("name", "John").
+			Where("id = ?", 1).
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		want := "UPDATE users SET name = $1 WHERE id = $2"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+	})
+
+	t.Run("UpdateWithAllowlist disallowed column", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := UpdateWithAllowlist("users", "name").
+			Set("password", "secret").
+			Where("id = ?", 1).
+			Build()
+		if err == nil {
+			t.Error("Build() expected error for disallowed column")
+		}
+	})
+
+	t.Run("UpdateBuilder SetMap", func(t *testing.T) {
+		t.Parallel()
+		sql, args, err := Update("users").
+			SetMap(map[string]any{"name": "John", "status": "active"}).
+			Where("id = ?", 1).
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		// Map iteration order is not guaranteed, so just check it contains expected parts
+		if len(args) != 3 {
+			t.Errorf("Build() args length = %d, want 3", len(args))
+		}
+		if sql == "" {
+			t.Error("Build() SQL is empty")
+		}
+	})
+
+	t.Run("UpdateBuilder WhereIn", func(t *testing.T) {
+		t.Parallel()
+		sql, args, err := Update("users").
+			Set("status", "archived").
+			WhereIn("id", 1, 2, 3).
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		want := "UPDATE users SET status = $1 WHERE id IN ($2, $3, $4)"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+		if len(args) != 4 {
+			t.Errorf("Build() args = %v, want 4 args", args)
+		}
+	})
+
+	t.Run("UpdateBuilder WhereIn empty values", func(t *testing.T) {
+		t.Parallel()
+		sql, _, err := Update("users").
+			Set("status", "archived").
+			WhereIn("id").
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		// Empty WhereIn should not add any WHERE clause
+		want := "UPDATE users SET status = $1"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+	})
+
+	t.Run("DeleteWithAllowlist", func(t *testing.T) {
+		t.Parallel()
+		builder := DeleteWithAllowlist("users", "id", "status")
+		sql, _, err := builder.Where("id = ?", 1).Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		want := "DELETE FROM users WHERE id = $1"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+	})
+
+	t.Run("DeleteBuilder OrWhere", func(t *testing.T) {
+		t.Parallel()
+		sql, args, err := Delete("users").
+			Where("status = ?", "deleted").
+			OrWhere("status = ?", "expired").
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		want := "DELETE FROM users WHERE status = $1 OR status = $2"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+		if len(args) != 2 {
+			t.Errorf("Build() args = %v, want 2 args", args)
+		}
+	})
+
+	t.Run("DeleteBuilder WhereIn empty values", func(t *testing.T) {
+		t.Parallel()
+		sql, _, err := Delete("users").
+			WhereIn("id").
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		// Empty WhereIn should not add any WHERE clause
+		want := "DELETE FROM users"
+		if sql != want {
+			t.Errorf("Build() SQL = %q, want %q", sql, want)
+		}
+	})
 }
 
 func TestReplacePlaceholders(t *testing.T) {
