@@ -1,0 +1,164 @@
+name: Slack Notification
+
+on:
+  workflow_call:
+    inputs:
+      status:
+        description: "Notification status (SUCCESS, FAILURE, CANCELLED)"
+        required: true
+        type: string
+      version:
+        description: "Release version"
+        required: false
+        type: string
+        default: ""
+      triggered_by:
+        description: "User who triggered the workflow"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      SLACK_WEBHOOK_URL:
+        description: "Slack webhook URL for notifications"
+        required: true
+
+jobs:
+  notify:
+    name: Send Slack Notification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set notification format
+        id: format
+        env:
+          STATUS: ${{ inputs.status }}
+          VERSION: ${{ inputs.version }}
+          TRIGGERED_BY: ${{ inputs.triggered_by }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          # Set version display (default to "N/A" if empty)
+          if [ -n "$VERSION" ] && [ "$VERSION" != "" ]; then
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "version=N/A" >> $GITHUB_OUTPUT
+          fi
+
+          # Set triggered by (default to actor if empty)
+          if [ -n "$TRIGGERED_BY" ] && [ "$TRIGGERED_BY" != "" ]; then
+            echo "triggered_by=$TRIGGERED_BY" >> $GITHUB_OUTPUT
+          else
+            echo "triggered_by=$ACTOR" >> $GITHUB_OUTPUT
+          fi
+
+          # Set color, emoji, and status text based on status
+          case "$STATUS" in
+            "SUCCESS")
+              echo "color=#10B981" >> $GITHUB_OUTPUT
+              echo "emoji=:white_check_mark:" >> $GITHUB_OUTPUT
+              echo "status_text=Released Successfully" >> $GITHUB_OUTPUT
+              ;;
+            "FAILURE")
+              echo "color=#EF4444" >> $GITHUB_OUTPUT
+              echo "emoji=:x:" >> $GITHUB_OUTPUT
+              echo "status_text=Release Failed" >> $GITHUB_OUTPUT
+              ;;
+            "CANCELLED")
+              echo "color=#6B7280" >> $GITHUB_OUTPUT
+              echo "emoji=:no_entry_sign:" >> $GITHUB_OUTPUT
+              echo "status_text=Release Cancelled" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "color=#F59E0B" >> $GITHUB_OUTPUT
+              echo "emoji=:warning:" >> $GITHUB_OUTPUT
+              echo "status_text=Unknown Status ($STATUS)" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Get repository name
+        id: repo
+        run: |
+          echo "name=${GITHUB_REPOSITORY#*/}" >> $GITHUB_OUTPUT
+
+      - name: Get short SHA
+        id: sha
+        run: |
+          echo "short=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v2.1.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.format.outputs.emoji }}  *${{ steps.repo.outputs.name }}* ${{ steps.format.outputs.status_text }}"
+                  }
+                },
+                {
+                  "type": "divider"
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Version*\n`${{ steps.format.outputs.version }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch*\n`${{ github.ref_name }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Triggered By*\n${{ steps.format.outputs.triggered_by }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit*\n`${{ steps.sha.outputs.short }}`"
+                    }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Workflow",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                      "style": "primary"
+                    },
+                    {
+                      "type": "button",
+                      "text": {
+                        "type": "plain_text",
+                        "text": "View Repository",
+                        "emoji": true
+                      },
+                      "url": "https://github.com/${{ github.repository }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": ":link:  <https://github.com/${{ github.repository }}|${{ github.repository }}>"
+                    }
+                  ]
+                }
+              ],
+              "attachments": [
+                {
+                  "color": "${{ steps.format.outputs.color }}"
+                }
+              ]
+            }

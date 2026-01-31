@@ -1,0 +1,14 @@
+# CI/CD workflows - require review from maintainers
+.github/workflows/ @Dorico-Dynamics/maintainers
+
+# Core library code - require review from maintainers
+*.go @Dorico-Dynamics/maintainers
+go.mod @Dorico-Dynamics/maintainers
+go.sum @Dorico-Dynamics/maintainers
+
+# Configuration files
+.golangci.yml @Dorico-Dynamics/maintainers
+.gitignore @Dorico-Dynamics/maintainers
+
+# Documentation
+*.md @Dorico-Dynamics/maintainers

@@ -1,0 +1,252 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    # Default linters
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # Additional linters
+    - bodyclose
+    - copyloopvar
+    - dupl
+    - durationcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - gochecknoinits
+    - goconst
+    - gocritic
+    - gocyclo
+    - godot
+    - goprintffuncname
+    - gosec
+    - intrange
+    - makezero
+    - misspell
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - prealloc
+    - predeclared
+    - revive
+    - rowserrcheck
+    - sqlclosecheck
+    - testableexamples
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - whitespace
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    gocyclo:
+      min-complexity: 15
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+
+    nakedret:
+      max-func-lines: 30
+
+    nestif:
+      min-complexity: 4
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: error-naming
+        - name: exported
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: package-comments
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: var-declaration
+        - name: var-naming
+
+    staticcheck:
+      checks:
+        - all
+
+    unparam:
+      check-exported: true
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - goconst
+          - gosec
+          - unparam
+          - errcheck
+          - gocyclo
+          - gochecknoinits
+          - errorlint
+          - intrange
+          - nestif
+
+      - path: _test\.go
+        text: "fieldalignment"
+
+      - path: _test\.go
+        text: "httpNoBody"
+
+      - path: _test\.go
+        text: "elseif"
+
+      # Allow nested if blocks in migration logic - naturally nested
+      - path: postgres/migrate\.go
+        linters:
+          - nestif
+
+      # Allow nested if blocks in query builder - naturally nested logic for SQL generation
+      - path: postgres/query\.go
+        linters:
+          - nestif
+
+      - path: postgres/insert\.go
+        linters:
+          - nestif
+
+      - path: postgres/update\.go
+        linters:
+          - nestif
+
+      - path: postgres/delete\.go
+        linters:
+          - nestif
+
+      # Allow nested if blocks in session management
+      - path: redis/session\.go
+        linters:
+          - nestif
+
+      # Allow nested if blocks in rate limiting
+      - path: redis/ratelimit\.go
+        linters:
+          - nestif
+
+      # Migrator ctx params reserved for future context cancellation support
+      - path: postgres/migrate\.go
+        linters:
+          - unparam
+        text: "ctx is unused"
+
+      # NewMigrator result intentionally returned for API consistency
+      - path: postgres/migrate\.go
+        linters:
+          - unparam
+        text: "result 0.*is never used"
+
+      # hugeParam: pgx.TxOptions is a library type, cannot change to pointer
+      - text: "hugeParam"
+        linters:
+          - gocritic
+
+      # unnamedResult: builder functions have clear return semantics
+      - text: "unnamedResult"
+        linters:
+          - gocritic
+
+      # singleCaseSwitch: switch is clearer for error class matching
+      - path: postgres/errors\.go
+        text: "singleCaseSwitch"
+        linters:
+          - gocritic
+
+      # sloppyReassign: intentional for error handling pattern
+      - path: postgres/txmanager\.go
+        text: "sloppyReassign"
+        linters:
+          - gocritic
+
+      # gocyclo: SelectBuilder.Build naturally complex for SQL generation
+      - path: postgres/query\.go
+        text: "cyclomatic complexity"
+        linters:
+          - gocyclo
+
+      # gosec G115: integer conversion is bounded by config validation
+      - path: postgres/pool\.go
+        text: "G115"
+        linters:
+          - gosec
+
+      # gosec G115/G404: bounded by retry logic
+      - path: postgres/txmanager\.go
+        text: "G115|G404"
+        linters:
+          - gosec
+
+      # unusedwrite in tests - fields are used in serialization
+      - path: _test\.go
+        text: "unusedwrite"
+        linters:
+          - govet
+
+      # sqlQuery in tests - testing error paths intentionally
+      - path: _test\.go
+        text: "sqlQuery"
+        linters:
+          - gocritic
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Dorico-Dynamics/txova-go-db
