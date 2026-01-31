@@ -9,6 +9,8 @@ import (
 	"errors"
 	"log/slog"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // Default session settings.
@@ -136,6 +138,13 @@ func WithSessionData(data any) SessionCreateOption {
 
 // CreateWithTTL creates a new session with a custom TTL.
 func (s *SessionStore) CreateWithTTL(ctx context.Context, userID string, ttl time.Duration, opts ...SessionCreateOption) (*Session, error) {
+	// Validate TTL to prevent zero/negative expiry values
+	if ttl <= 0 {
+		err := errors.New("invalid TTL: must be greater than zero")
+		s.logger.Error("invalid session TTL", "user_id", userID, "ttl", ttl, "error", err)
+		return nil, err
+	}
+
 	sessionID, err := generateSessionID()
 	if err != nil {
 		s.logger.Error("failed to generate session ID", "user_id", userID, "error", err)
@@ -397,15 +406,80 @@ func (s *SessionStore) Extend(ctx context.Context, sessionID string, ttl time.Du
 	session.ExpiresAt = time.Now().Add(ttl)
 	session.LastActive = time.Now()
 
-	return s.update(ctx, session)
+	if updateErr := s.update(ctx, session); updateErr != nil {
+		return updateErr
+	}
+
+	// Refresh userSessionsKey TTL using same monotonic logic as CreateWithTTL
+	// (only extend forward, never shrink)
+	userSessionsKey := s.userSessionsKey(session.UserID)
+	currentTTL, ttlErr := s.client.client.TTL(ctx, userSessionsKey).Result()
+	if ttlErr != nil {
+		s.logger.Error("failed to get user sessions index TTL", "user_id", session.UserID, "error", ttlErr)
+		return FromRedisError(ttlErr)
+	}
+
+	// Only extend the index TTL if the new session TTL is longer
+	if currentTTL < 0 || ttl > currentTTL {
+		if expireErr := s.client.client.Expire(ctx, userSessionsKey, ttl).Err(); expireErr != nil {
+			s.logger.Error("failed to extend user sessions index TTL", "user_id", session.UserID, "error", expireErr)
+			return FromRedisError(expireErr)
+		}
+	}
+
+	return nil
 }
 
 // Count returns the number of active sessions for a user.
+// This filters out stale session IDs that no longer exist.
 func (s *SessionStore) Count(ctx context.Context, userID string) (int64, error) {
 	userSessionsKey := s.userSessionsKey(userID)
-	count, err := s.client.client.SCard(ctx, userSessionsKey).Result()
+
+	// Get all session IDs from the index
+	sessionIDs, err := s.client.client.SMembers(ctx, userSessionsKey).Result()
 	if err != nil {
 		return 0, FromRedisError(err)
 	}
+
+	if len(sessionIDs) == 0 {
+		return 0, nil
+	}
+
+	// Check which sessions actually exist using pipelined Exists
+	pipe := s.client.client.Pipeline()
+	existsCmds := make([]*redis.IntCmd, len(sessionIDs))
+	for i, id := range sessionIDs {
+		existsCmds[i] = pipe.Exists(ctx, s.sessionKey(id))
+	}
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		return 0, FromRedisError(err)
+	}
+
+	// Count existing sessions and collect stale IDs
+	var count int64
+	expiredIDs := make([]string, 0)
+	for i, cmd := range existsCmds {
+		if cmd.Val() > 0 {
+			count++
+		} else {
+			expiredIDs = append(expiredIDs, sessionIDs[i])
+		}
+	}
+
+	// Clean up stale session IDs from the index
+	if len(expiredIDs) > 0 {
+		go func() {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			args := make([]any, len(expiredIDs))
+			for i, id := range expiredIDs {
+				args[i] = id
+			}
+			//nolint:errcheck,gosec // Best-effort cleanup of expired session references.
+			s.client.client.SRem(cleanupCtx, userSessionsKey, args...).Err()
+		}()
+	}
+
 	return count, nil
 }

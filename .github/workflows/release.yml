@@ -37,13 +37,17 @@ jobs:
 
           # Parse version components with defaults for malformed tags
           VERSION=${LATEST_TAG#v}
+          # Strip any pre-release/meta suffix (e.g., -rc1, -beta, +build)
+          VERSION=$(echo "$VERSION" | sed 's/[-+].*//')
+
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           PATCH=$(echo "$VERSION" | cut -d. -f3)
-          # Default empty components to 0
-          MAJOR=${MAJOR:-0}
-          MINOR=${MINOR:-0}
-          PATCH=${PATCH:-0}
+
+          # Validate each component is numeric, default to 0 if not
+          if ! [[ "$MAJOR" =~ ^[0-9]+$ ]]; then MAJOR=0; fi
+          if ! [[ "$MINOR" =~ ^[0-9]+$ ]]; then MINOR=0; fi
+          if ! [[ "$PATCH" =~ ^[0-9]+$ ]]; then PATCH=0; fi
 
           # Get commits since last tag (include full commit bodies for BREAKING CHANGE detection)
           if [ "$LATEST_TAG" = "v0.0.0" ]; then
