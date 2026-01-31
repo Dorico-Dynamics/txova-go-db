@@ -82,17 +82,17 @@ func TestNewMigrator_NilPool(t *testing.T) {
 	}
 }
 
-func TestNewMigrator_NilMigrations(t *testing.T) {
+func TestNewMigrator_NilPoolPrecedence(t *testing.T) {
 	t.Parallel()
 
-	// We can't create a real pool without a database, so we test nil migrations with a typed nil
-	// This test verifies the nil check happens before pool is used
+	// When both pool and migrations are nil, pool is validated first.
+	// This test verifies the validation order: pool is checked before migrations.
 	_, err := NewMigrator(nil, nil)
 	if err == nil {
-		t.Fatal("expected error for nil migrations")
+		t.Fatal("expected error for nil pool")
 	}
 
-	// Error message will be "pool cannot be nil" because pool is checked first
+	// Pool validation takes precedence over migrations validation
 	expectedMsg := "pool cannot be nil"
 	if err.Error() != expectedMsg {
 		t.Errorf("expected error %q, got %q", expectedMsg, err.Error())

@@ -47,7 +47,8 @@ func setupDockerPool(t *testing.T) Pool {
 	ctx := context.Background()
 
 	connStr := getDockerPostgresConnStr()
-	t.Logf("Connecting to: %s", connStr)
+	// Log connection info without password
+	t.Logf("Connecting to Docker PostgreSQL on port %s", getEnvOrDefault("POSTGRES_PORT", "5433"))
 
 	pool, err := NewPool(ctx,
 		WithConnString(connStr),

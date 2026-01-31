@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	coreerrors "github.com/Dorico-Dynamics/txova-go-core/errors"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -323,7 +324,11 @@ func IsCode(err error, code Code) bool {
 }
 
 // IsNotFound checks if the error is a not found error.
+// This includes both database CodeNotFound errors and pgx.ErrNoRows from QueryRow.
 func IsNotFound(err error) bool {
+	if errors.Is(err, pgx.ErrNoRows) {
+		return true
+	}
 	return IsCode(err, CodeNotFound)
 }
 
