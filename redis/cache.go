@@ -376,8 +376,8 @@ func NewKeyBuilder(service string) *KeyBuilder {
 	return &KeyBuilder{service: service}
 }
 
-// Key builds a cache key in the format: {service}:{entity}:{id}
-func (b *KeyBuilder) Key(entity string, id string) string {
+// Key builds a cache key in the format: {service}:{entity}:{id}.
+func (b *KeyBuilder) Key(entity, id string) string {
 	return b.service + ":" + entity + ":" + id
 }
 

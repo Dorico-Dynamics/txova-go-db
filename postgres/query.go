@@ -46,7 +46,6 @@ type orderByClause struct {
 // QueryBuilder provides common functionality for all query builders.
 type QueryBuilder struct {
 	allowedColumns map[string]struct{}
-	errors         []error
 }
 
 // NewQueryBuilder creates a new QueryBuilder with optional column allowlist.
@@ -191,14 +190,14 @@ func (s *SelectBuilder) WhereNotIn(column string, values ...any) *SelectBuilder 
 }
 
 // WhereLike adds a WHERE column LIKE pattern condition.
-func (s *SelectBuilder) WhereLike(column string, pattern string) *SelectBuilder {
+func (s *SelectBuilder) WhereLike(column, pattern string) *SelectBuilder {
 	condition := fmt.Sprintf("%s LIKE ?", column)
 	s.where = append(s.where, whereClause{condition: condition, args: []any{pattern}, isOr: false})
 	return s
 }
 
 // WhereILike adds a WHERE column ILIKE pattern condition (case-insensitive).
-func (s *SelectBuilder) WhereILike(column string, pattern string) *SelectBuilder {
+func (s *SelectBuilder) WhereILike(column, pattern string) *SelectBuilder {
 	condition := fmt.Sprintf("%s ILIKE ?", column)
 	s.where = append(s.where, whereClause{condition: condition, args: []any{pattern}, isOr: false})
 	return s
@@ -218,10 +217,10 @@ func (s *SelectBuilder) WhereNotNull(column string) *SelectBuilder {
 	return s
 }
 
-// WhereBetween adds a WHERE column BETWEEN min AND max condition.
-func (s *SelectBuilder) WhereBetween(column string, min, max any) *SelectBuilder {
+// WhereBetween adds a WHERE column BETWEEN minVal AND maxVal condition.
+func (s *SelectBuilder) WhereBetween(column string, minVal, maxVal any) *SelectBuilder {
 	condition := fmt.Sprintf("%s BETWEEN ? AND ?", column)
-	s.where = append(s.where, whereClause{condition: condition, args: []any{min, max}, isOr: false})
+	s.where = append(s.where, whereClause{condition: condition, args: []any{minVal, maxVal}, isOr: false})
 	return s
 }
 
@@ -446,14 +445,22 @@ func (s *SelectBuilder) MustBuild() (string, []any) {
 }
 
 // SQL returns only the SQL string (for debugging).
+// Returns empty string if build fails.
 func (s *SelectBuilder) SQL() string {
-	sql, _, _ := s.Build()
+	sql, _, err := s.Build()
+	if err != nil {
+		return ""
+	}
 	return sql
 }
 
 // Args returns only the arguments (for debugging).
+// Returns nil if build fails.
 func (s *SelectBuilder) Args() []any {
-	_, args, _ := s.Build()
+	_, args, err := s.Build()
+	if err != nil {
+		return nil
+	}
 	return args
 }
 

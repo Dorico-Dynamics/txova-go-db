@@ -214,17 +214,17 @@ func (e *Error) WithCause(cause error) *Error {
 // PostgreSQL SQLSTATE code classes.
 // https://www.postgresql.org/docs/current/errcodes-appendix.html
 const (
-	// Class 08 — Connection Exception
+	// Class 08 - Connection Exception.
 	sqlStateConnectionException = "08"
-	// Class 23 — Integrity Constraint Violation
+	// Class 23 - Integrity Constraint Violation.
 	sqlStateUniqueViolation     = "23505"
 	sqlStateForeignKeyViolation = "23503"
 	sqlStateCheckViolation      = "23514"
 	sqlStateNotNullViolation    = "23502"
-	// Class 40 — Transaction Rollback
+	// Class 40 - Transaction Rollback.
 	sqlStateSerializationFailure = "40001"
 	sqlStateDeadlockDetected     = "40P01"
-	// Class 57 — Operator Intervention
+	// Class 57 - Operator Intervention.
 	sqlStateQueryCanceled = "57014"
 )
 

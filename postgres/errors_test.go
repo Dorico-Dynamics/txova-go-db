@@ -728,3 +728,39 @@ func TestFromPgErrorCoreIntegration(t *testing.T) {
 		}
 	})
 }
+
+func TestError_As_WrongType(t *testing.T) {
+	t.Parallel()
+
+	dbErr := New(CodeNotFound, "not found")
+
+	// Try to extract as wrong type (should return false)
+	var s string
+	if dbErr.As(&s) {
+		t.Error("As() should return false for wrong type")
+	}
+
+	// Try to extract as nil interface (should return false)
+	var i interface{}
+	if dbErr.As(&i) {
+		t.Error("As() should return false for interface{}")
+	}
+}
+
+func TestError_As_AppError(t *testing.T) {
+	t.Parallel()
+
+	dbErr := New(CodeNotFound, "user not found")
+
+	// Extract as AppError (should work)
+	var appErr *coreerrors.AppError
+	if !dbErr.As(&appErr) {
+		t.Error("As() should return true for *coreerrors.AppError")
+	}
+	if appErr == nil {
+		t.Error("appErr should not be nil")
+	}
+	if appErr.Code() != coreerrors.CodeNotFound {
+		t.Errorf("appErr.Code() = %v, want %v", appErr.Code(), coreerrors.CodeNotFound)
+	}
+}

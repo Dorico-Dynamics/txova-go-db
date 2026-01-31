@@ -3,6 +3,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"time"
@@ -58,9 +59,9 @@ func WithRateLimitWindow(window time.Duration) RateLimiterOption {
 }
 
 // WithRateLimitMax sets the maximum requests per window.
-func WithRateLimitMax(max int64) RateLimiterOption {
+func WithRateLimitMax(maxReqs int64) RateLimiterOption {
 	return func(r *RateLimiter) {
-		r.maxReqs = max
+		r.maxReqs = maxReqs
 	}
 }
 
@@ -151,21 +152,21 @@ func (r *RateLimiter) AllowN(ctx context.Context, identifier string, n int64) (*
 		return nil, FromRedisError(err)
 	}
 
-	allowed := result[0].(int64) == 1
-	remaining := result[1].(int64)
-	ttlMs := result[2].(int64)
-	total := result[3].(int64)
+	allowedVal, _ := result[0].(int64) //nolint:errcheck // Lua script always returns int64
+	remaining, _ := result[1].(int64)  //nolint:errcheck // Lua script always returns int64
+	ttlMs, _ := result[2].(int64)      //nolint:errcheck // Lua script always returns int64
+	total, _ := result[3].(int64)      //nolint:errcheck // Lua script always returns int64
 
 	resetAt := time.Now().Add(time.Duration(ttlMs) * time.Millisecond)
 
 	rlResult := &RateLimitResult{
-		Allowed:   allowed,
+		Allowed:   allowedVal == 1,
 		Remaining: remaining,
 		ResetAt:   resetAt,
 		Total:     total,
 	}
 
-	if !allowed {
+	if !rlResult.Allowed {
 		r.logger.Debug("rate limit exceeded", "key", key, "remaining", remaining)
 	}
 
@@ -234,10 +235,10 @@ func (r *RateLimiter) SlidingWindowAllowN(ctx context.Context, identifier string
 		return nil, FromRedisError(err)
 	}
 
-	allowed := result[0].(int64) == 1
-	remaining := result[1].(int64)
-	resetMs := result[2].(int64)
-	total := result[3].(int64)
+	allowed := result[0].(int64) == 1 //nolint:errcheck // Lua script always returns int64
+	remaining := result[1].(int64)    //nolint:errcheck // Lua script always returns int64
+	resetMs := result[2].(int64)      //nolint:errcheck // Lua script always returns int64
+	total := result[3].(int64)        //nolint:errcheck // Lua script always returns int64
 
 	resetAt := now.Add(time.Duration(resetMs) * time.Millisecond)
 
@@ -286,9 +287,12 @@ func (r *RateLimiter) GetStatus(ctx context.Context, identifier string) (*RateLi
 	current := int64(0)
 	ttlMs := r.window.Milliseconds()
 
-	if err == nil || err == redis.Nil {
+	if err == nil || errors.Is(err, redis.Nil) {
 		if val, getErr := getCmd.Result(); getErr == nil {
-			current, _ = strconv.ParseInt(val, 10, 64)
+			parsed, parseErr := strconv.ParseInt(val, 10, 64)
+			if parseErr == nil {
+				current = parsed
+			}
 		}
 		if ttl, ttlErr := ttlCmd.Result(); ttlErr == nil && ttl > 0 {
 			ttlMs = ttl.Milliseconds()

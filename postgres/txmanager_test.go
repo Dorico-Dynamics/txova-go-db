@@ -39,6 +39,7 @@ func TestTxManagerConfigOptions(t *testing.T) {
 			name: "WithMaxRetries",
 			opt:  WithMaxRetries(5),
 			validate: func(t *testing.T, cfg TxManagerConfig) {
+				t.Helper()
 				if cfg.MaxRetries != 5 {
 					t.Errorf("MaxRetries = %d, want 5", cfg.MaxRetries)
 				}
@@ -48,6 +49,7 @@ func TestTxManagerConfigOptions(t *testing.T) {
 			name: "WithRetryBaseDelay",
 			opt:  WithRetryBaseDelay(100 * time.Millisecond),
 			validate: func(t *testing.T, cfg TxManagerConfig) {
+				t.Helper()
 				if cfg.RetryBaseDelay != 100*time.Millisecond {
 					t.Errorf("RetryBaseDelay = %v, want 100ms", cfg.RetryBaseDelay)
 				}
@@ -57,6 +59,7 @@ func TestTxManagerConfigOptions(t *testing.T) {
 			name: "WithRetryMaxDelay",
 			opt:  WithRetryMaxDelay(5 * time.Second),
 			validate: func(t *testing.T, cfg TxManagerConfig) {
+				t.Helper()
 				if cfg.RetryMaxDelay != 5*time.Second {
 					t.Errorf("RetryMaxDelay = %v, want 5s", cfg.RetryMaxDelay)
 				}
@@ -66,6 +69,7 @@ func TestTxManagerConfigOptions(t *testing.T) {
 			name: "WithTxLogger",
 			opt:  WithTxLogger(logging.Default()),
 			validate: func(t *testing.T, cfg TxManagerConfig) {
+				t.Helper()
 				if cfg.Logger == nil {
 					t.Error("Logger should not be nil")
 				}

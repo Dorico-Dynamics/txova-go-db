@@ -193,6 +193,9 @@ func (l *Locker) TryAcquire(ctx context.Context, resource string) (*Lock, error)
 }
 
 // TryAcquireWithTTL attempts to acquire a lock without blocking, with custom TTL.
+// Returns (nil, nil) if lock is already held (not an error condition for try-acquire).
+//
+//nolint:nilnil // Intentional: (nil, nil) means "lock not acquired, no error" for try semantics.
 func (l *Locker) TryAcquireWithTTL(ctx context.Context, resource string, ttl time.Duration) (*Lock, error) {
 	lock, err := l.AcquireWithTTL(ctx, resource, ttl)
 	if err != nil {

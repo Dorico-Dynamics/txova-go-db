@@ -73,7 +73,7 @@ type Migrator struct {
 
 // NewMigrator creates a new Migrator with the given pool and migration source.
 // The migrations parameter should be an embed.FS or any fs.FS containing migration files.
-// Migration files should follow the naming convention: NNNN_description.up.sql and NNNN_description.down.sql
+// Migration files should follow the naming convention: NNNN_description.up.sql and NNNN_description.down.sql.
 func NewMigrator(pool *pgxpool.Pool, migrations fs.FS, opts ...MigratorOption) (*Migrator, error) {
 	if pool == nil {
 		return nil, fmt.Errorf("pool cannot be nil")

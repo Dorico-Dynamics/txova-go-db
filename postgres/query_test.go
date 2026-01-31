@@ -806,7 +806,7 @@ func TestHelperMethods(t *testing.T) {
 		if sql != "SELECT id FROM users" {
 			t.Errorf("MustBuild() SQL = %q", sql)
 		}
-		if args != nil && len(args) != 0 {
+		if len(args) != 0 {
 			t.Errorf("MustBuild() args = %v", args)
 		}
 	})
@@ -1192,6 +1192,46 @@ func TestValidateColumnName(t *testing.T) {
 			if err := qb.validateColumnName(name); err == nil {
 				t.Errorf("validateColumnName(%q) = nil, want error", name)
 			}
+		}
+	})
+}
+
+func TestSelectBuilder_EmptyWhereInNotIn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("WhereIn with empty values", func(t *testing.T) {
+		t.Parallel()
+		sql, args, err := Select("users").
+			Columns("id", "name").
+			WhereIn("status"). // no values
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		// Empty WhereIn should be ignored
+		if sql != "SELECT id, name FROM users" {
+			t.Errorf("Build() SQL = %q, want no WHERE clause", sql)
+		}
+		if len(args) != 0 {
+			t.Errorf("Build() args = %v, want empty", args)
+		}
+	})
+
+	t.Run("WhereNotIn with empty values", func(t *testing.T) {
+		t.Parallel()
+		sql, args, err := Select("users").
+			Columns("id", "name").
+			WhereNotIn("status"). // no values
+			Build()
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		// Empty WhereNotIn should be ignored
+		if sql != "SELECT id, name FROM users" {
+			t.Errorf("Build() SQL = %q, want no WHERE clause", sql)
+		}
+		if len(args) != 0 {
+			t.Errorf("Build() args = %v, want empty", args)
 		}
 	})
 }

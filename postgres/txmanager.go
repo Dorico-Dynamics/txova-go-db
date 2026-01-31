@@ -181,8 +181,8 @@ func (m *txManager) executeTx(ctx context.Context, opts pgx.TxOptions, fn func(t
 	// Handle panics - rollback and re-panic.
 	defer func() {
 		if r := recover(); r != nil {
-			// Attempt rollback, ignore error since we're panicking.
-			_ = tx.Rollback(ctx)
+			// Attempt rollback, ignore error since we're panicking anyway.
+			_ = tx.Rollback(ctx) //nolint:errcheck // Best-effort rollback before re-panic.
 			m.config.Logger.ErrorContext(ctx, "transaction panic, rolled back",
 				"panic", r,
 			)

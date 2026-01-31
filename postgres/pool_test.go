@@ -52,6 +52,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithConnString",
 			opt:  WithConnString("postgres://localhost/test"),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.ConnString != "postgres://localhost/test" {
 					t.Errorf("ConnString = %q, want %q", cfg.ConnString, "postgres://localhost/test")
 				}
@@ -61,6 +62,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithMaxConns",
 			opt:  WithMaxConns(50),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.MaxConns != 50 {
 					t.Errorf("MaxConns = %d, want 50", cfg.MaxConns)
 				}
@@ -70,6 +72,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithMinConns",
 			opt:  WithMinConns(10),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.MinConns != 10 {
 					t.Errorf("MinConns = %d, want 10", cfg.MinConns)
 				}
@@ -79,6 +82,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithMaxConnLifetime",
 			opt:  WithMaxConnLifetime(2 * time.Hour),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.MaxConnLifetime != 2*time.Hour {
 					t.Errorf("MaxConnLifetime = %v, want %v", cfg.MaxConnLifetime, 2*time.Hour)
 				}
@@ -88,6 +92,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithMaxConnIdleTime",
 			opt:  WithMaxConnIdleTime(15 * time.Minute),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.MaxConnIdleTime != 15*time.Minute {
 					t.Errorf("MaxConnIdleTime = %v, want %v", cfg.MaxConnIdleTime, 15*time.Minute)
 				}
@@ -97,6 +102,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithHealthCheckPeriod",
 			opt:  WithHealthCheckPeriod(30 * time.Second),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.HealthCheckPeriod != 30*time.Second {
 					t.Errorf("HealthCheckPeriod = %v, want %v", cfg.HealthCheckPeriod, 30*time.Second)
 				}
@@ -106,6 +112,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithConnectTimeout",
 			opt:  WithConnectTimeout(10 * time.Second),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.ConnectTimeout != 10*time.Second {
 					t.Errorf("ConnectTimeout = %v, want %v", cfg.ConnectTimeout, 10*time.Second)
 				}
@@ -115,6 +122,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithSlowQueryThreshold",
 			opt:  WithSlowQueryThreshold(500 * time.Millisecond),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.SlowQueryThreshold != 500*time.Millisecond {
 					t.Errorf("SlowQueryThreshold = %v, want %v", cfg.SlowQueryThreshold, 500*time.Millisecond)
 				}
@@ -124,6 +132,7 @@ func TestPoolConfigOptions(t *testing.T) {
 			name: "WithLogger",
 			opt:  WithLogger(logging.Default()),
 			validate: func(t *testing.T, cfg PoolConfig) {
+				t.Helper()
 				if cfg.Logger == nil {
 					t.Error("Logger should not be nil")
 				}

@@ -349,7 +349,8 @@ func (s *SessionStore) ListByUserID(ctx context.Context, userID string) ([]*Sess
 			for i, id := range expiredIDs {
 				args[i] = id
 			}
-			_ = s.client.client.SRem(cleanupCtx, userSessionsKey, args...).Err()
+			//nolint:errcheck,gosec // Best-effort cleanup of expired session references.
+			s.client.client.SRem(cleanupCtx, userSessionsKey, args...).Err()
 		}()
 	}
 

@@ -158,13 +158,21 @@ func (u *UpdateBuilder) MustBuild() (string, []any) {
 }
 
 // SQL returns only the SQL string (for debugging).
+// Returns empty string if build fails.
 func (u *UpdateBuilder) SQL() string {
-	sql, _, _ := u.Build()
+	sql, _, err := u.Build()
+	if err != nil {
+		return ""
+	}
 	return sql
 }
 
 // Args returns only the arguments (for debugging).
+// Returns nil if build fails.
 func (u *UpdateBuilder) Args() []any {
-	_, args, _ := u.Build()
+	_, args, err := u.Build()
+	if err != nil {
+		return nil
+	}
 	return args
 }

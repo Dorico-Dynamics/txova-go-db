@@ -67,7 +67,7 @@ func TestPgxConn_logSlowQuery(t *testing.T) {
 			conn.logSlowQuery(ctx, "SELECT * FROM users", tt.duration)
 
 			logOutput := buf.String()
-			hasWarning := len(logOutput) > 0 && contains(logOutput, "slow query detected")
+			hasWarning := logOutput != "" && contains(logOutput, "slow query detected")
 
 			if hasWarning != tt.expectWarning {
 				t.Errorf("logSlowQuery() warning = %v, want %v, output: %s", hasWarning, tt.expectWarning, logOutput)
@@ -127,7 +127,7 @@ func TestPgxTx_logSlowQuery(t *testing.T) {
 			tx.logSlowQuery(ctx, "SELECT * FROM users", tt.duration)
 
 			logOutput := buf.String()
-			hasWarning := len(logOutput) > 0 && contains(logOutput, "slow query detected")
+			hasWarning := logOutput != "" && contains(logOutput, "slow query detected")
 
 			if hasWarning != tt.expectWarning {
 				t.Errorf("logSlowQuery() warning = %v, want %v, output: %s", hasWarning, tt.expectWarning, logOutput)
@@ -164,7 +164,63 @@ func TestPgxPool_logSlowQuery(t *testing.T) {
 	}
 }
 
-// contains checks if substr is in s
+// contains checks if substr is in s.
 func contains(s, substr string) bool {
 	return bytes.Contains([]byte(s), []byte(substr))
+}
+
+func TestPoolStats_Fields(t *testing.T) {
+	t.Parallel()
+
+	stats := PoolStats{
+		AcquireCount:            100,
+		AcquireDuration:         5000,
+		AcquiredConns:           10,
+		CanceledAcquireCount:    2,
+		ConstructingConns:       1,
+		EmptyAcquireCount:       5,
+		IdleConns:               15,
+		MaxConns:                25,
+		TotalConns:              20,
+		NewConnsCount:           50,
+		MaxLifetimeDestroyCount: 3,
+		MaxIdleDestroyCount:     7,
+	}
+
+	if stats.AcquireCount != 100 {
+		t.Errorf("AcquireCount = %d, want 100", stats.AcquireCount)
+	}
+	if stats.AcquireDuration != 5000 {
+		t.Errorf("AcquireDuration = %d, want 5000", stats.AcquireDuration)
+	}
+	if stats.AcquiredConns != 10 {
+		t.Errorf("AcquiredConns = %d, want 10", stats.AcquiredConns)
+	}
+	if stats.CanceledAcquireCount != 2 {
+		t.Errorf("CanceledAcquireCount = %d, want 2", stats.CanceledAcquireCount)
+	}
+	if stats.ConstructingConns != 1 {
+		t.Errorf("ConstructingConns = %d, want 1", stats.ConstructingConns)
+	}
+	if stats.EmptyAcquireCount != 5 {
+		t.Errorf("EmptyAcquireCount = %d, want 5", stats.EmptyAcquireCount)
+	}
+	if stats.IdleConns != 15 {
+		t.Errorf("IdleConns = %d, want 15", stats.IdleConns)
+	}
+	if stats.MaxConns != 25 {
+		t.Errorf("MaxConns = %d, want 25", stats.MaxConns)
+	}
+	if stats.TotalConns != 20 {
+		t.Errorf("TotalConns = %d, want 20", stats.TotalConns)
+	}
+	if stats.NewConnsCount != 50 {
+		t.Errorf("NewConnsCount = %d, want 50", stats.NewConnsCount)
+	}
+	if stats.MaxLifetimeDestroyCount != 3 {
+		t.Errorf("MaxLifetimeDestroyCount = %d, want 3", stats.MaxLifetimeDestroyCount)
+	}
+	if stats.MaxIdleDestroyCount != 7 {
+		t.Errorf("MaxIdleDestroyCount = %d, want 7", stats.MaxIdleDestroyCount)
+	}
 }

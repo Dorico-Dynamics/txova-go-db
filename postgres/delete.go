@@ -119,13 +119,21 @@ func (d *DeleteBuilder) MustBuild() (string, []any) {
 }
 
 // SQL returns only the SQL string (for debugging).
+// Returns empty string if build fails.
 func (d *DeleteBuilder) SQL() string {
-	sql, _, _ := d.Build()
+	sql, _, err := d.Build()
+	if err != nil {
+		return ""
+	}
 	return sql
 }
 
 // Args returns only the arguments (for debugging).
+// Returns nil if build fails.
 func (d *DeleteBuilder) Args() []any {
-	_, args, _ := d.Build()
+	_, args, err := d.Build()
+	if err != nil {
+		return nil
+	}
 	return args
 }

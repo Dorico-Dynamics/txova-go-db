@@ -20,7 +20,6 @@ type InsertBuilder struct {
 type conflictClause struct {
 	columns    []string
 	doNothing  bool
-	doUpdate   []setClause
 	constraint string
 }
 
@@ -180,13 +179,21 @@ func (i *InsertBuilder) MustBuild() (string, []any) {
 }
 
 // SQL returns only the SQL string (for debugging).
+// Returns empty string if build fails.
 func (i *InsertBuilder) SQL() string {
-	sql, _, _ := i.Build()
+	sql, _, err := i.Build()
+	if err != nil {
+		return ""
+	}
 	return sql
 }
 
 // Args returns only the arguments (for debugging).
+// Returns nil if build fails.
 func (i *InsertBuilder) Args() []any {
-	_, args, _ := i.Build()
+	_, args, err := i.Build()
+	if err != nil {
+		return nil
+	}
 	return args
 }
