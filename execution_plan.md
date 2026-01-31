@@ -12,7 +12,7 @@ Implementation plan for the database utilities library providing PostgreSQL and 
 ## Progress Summary
 
 | Phase | Status | Commit | Coverage |
-|-------|--------|--------|----------|
+| ------- | -------- | -------- | ---------- |
 | Phase 1: Foundation | ✅ Complete | `f046eba`, `0b2f5fb` | 95.2% |
 | Phase 2: PostgreSQL Connection Management | ✅ Complete | `b3caa54` | 50% unit |
 | Phase 3: Transaction Management | ✅ Complete | `def795d` | 47.5% unit |
@@ -297,7 +297,7 @@ Implementation plan for the database utilities library providing PostgreSQL and 
 ## Success Criteria
 
 | Metric | Target |
-|--------|--------|
+| -------- | -------- |
 | Test coverage | > 90% |
 | Connection pool efficiency | > 90% |
 | All P0 features implemented | 100% |

@@ -651,12 +651,19 @@ func TestDeleteBuilder(t *testing.T) {
 			wantArgs: []any{1, 2, 3},
 		},
 		{
-			name: "delete all (no where)",
+			name: "delete all (no where) - requires opt-in",
 			builder: func() *DeleteBuilder {
-				return Delete("temp_data")
+				return Delete("temp_data").AllowUnrestrictedDelete()
 			},
 			wantSQL:  "DELETE FROM temp_data",
 			wantArgs: nil,
+		},
+		{
+			name: "delete all without opt-in fails",
+			builder: func() *DeleteBuilder {
+				return Delete("temp_data")
+			},
+			wantErr: true,
 		},
 	}
 
@@ -1100,6 +1107,7 @@ func TestAllowlistBuilders(t *testing.T) {
 		t.Parallel()
 		sql, _, err := Delete("users").
 			WhereIn("id").
+			AllowUnrestrictedDelete().
 			Build()
 		if err != nil {
 			t.Fatalf("Build() error = %v", err)

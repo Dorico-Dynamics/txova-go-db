@@ -9,9 +9,10 @@ import (
 // DeleteBuilder builds DELETE queries.
 type DeleteBuilder struct {
 	*QueryBuilder
-	table     string
-	where     []whereClause
-	returning []string
+	table             string
+	where             []whereClause
+	returning         []string
+	allowUnrestricted bool
 }
 
 // Delete creates a new DeleteBuilder for the specified table.
@@ -66,11 +67,25 @@ func (d *DeleteBuilder) Returning(columns ...string) *DeleteBuilder {
 	return d
 }
 
+// AllowUnrestrictedDelete enables DELETE without WHERE clause.
+// By default, DeleteBuilder requires at least one WHERE condition to prevent
+// accidental full-table deletes. Call this method to explicitly allow
+// unrestricted deletes when that is the intended behavior.
+func (d *DeleteBuilder) AllowUnrestrictedDelete() *DeleteBuilder {
+	d.allowUnrestricted = true
+	return d
+}
+
 // Build generates the SQL query and returns it with the arguments.
 func (d *DeleteBuilder) Build() (string, []any, error) {
 	// Validate table name
 	if err := validateTableName(d.table); err != nil {
 		return "", nil, err
+	}
+
+	// Safeguard against unrestricted deletes
+	if len(d.where) == 0 && !d.allowUnrestricted {
+		return "", nil, fmt.Errorf("DELETE without WHERE clause requires explicit opt-in via AllowUnrestrictedDelete()")
 	}
 
 	var args []any

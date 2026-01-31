@@ -58,8 +58,8 @@ jobs:
           echo "$COMMITS"
 
           # Determine version bump based on conventional commits
-          # Check for BREAKING CHANGE in commit body or ! in commit subject
-          if echo "$COMMITS" | grep -qE "^(feat|feature)(\(.+\))?!:|BREAKING CHANGE:"; then
+          # Check for BREAKING CHANGE in commit body or ! in commit subject (any type)
+          if echo "$COMMITS" | grep -qE "^[a-zA-Z0-9_-]+(\(.+\))?!:|BREAKING CHANGE:"; then
             # Breaking change - major bump
             MAJOR=$((MAJOR + 1))
             MINOR=0
