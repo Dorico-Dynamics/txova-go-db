@@ -2,6 +2,8 @@ github.com/Dorico-Dynamics/txova-go-core v1.0.0 h1:xPyNhHKu3zIUQ9R4b9flzd251gJn3
 github.com/Dorico-Dynamics/txova-go-core v1.0.0/go.mod h1:Rwqq+wnlM+AETcwuhqKGHJOh8ljJ8GOG2hTvWgPUQTM=
 github.com/Dorico-Dynamics/txova-go-types v1.0.1 h1:bndgmVRQEuCma3A/35GEyc2lVNvnvecw3hdj191ZG4c=
 github.com/Dorico-Dynamics/txova-go-types v1.0.1/go.mod h1:WkWIOXLkVwFu1wyLGm9U2R2dTECuTtEJTR8rIiA+dBw=
+github.com/Dorico-Dynamics/txova-go-types v1.1.2 h1:TwCagZrVoxyuamswvGPI4JfnZ5gkRGeDl0halTmk/3g=
+github.com/Dorico-Dynamics/txova-go-types v1.1.2/go.mod h1:WkWIOXLkVwFu1wyLGm9U2R2dTECuTtEJTR8rIiA+dBw=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
