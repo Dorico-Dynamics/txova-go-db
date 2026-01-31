@@ -1,39 +1,57 @@
 // Package postgres provides PostgreSQL database utilities for the Txova platform.
 // It includes connection pooling, transaction management, query building, and
 // migration support with proper error handling and logging integration.
+//
+// Error Handling:
+// This package integrates with txova-go-core/errors to provide unified error handling.
+// Database errors wrap core.AppError, enabling seamless use of core error checking
+// functions (e.g., errors.IsNotFound works for both application and database errors).
 package postgres
 
 import (
 	"errors"
 	"fmt"
 
+	coreerrors "github.com/Dorico-Dynamics/txova-go-core/errors"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // Code represents a database-specific error code.
+// These codes provide more granular database error classification
+// while mapping to core.Code for HTTP status and unified error handling.
 type Code string
 
 // Standard database error codes for the Txova platform.
 const (
 	// CodeNotFound indicates the requested record was not found.
+	// Maps to core.CodeNotFound (HTTP 404).
 	CodeNotFound Code = "DB_NOT_FOUND"
 	// CodeDuplicate indicates a unique constraint violation.
+	// Maps to core.CodeConflict (HTTP 409).
 	CodeDuplicate Code = "DB_DUPLICATE"
 	// CodeForeignKey indicates a foreign key constraint violation.
+	// Maps to core.CodeConflict (HTTP 409).
 	CodeForeignKey Code = "DB_FOREIGN_KEY"
 	// CodeCheckViolation indicates a check constraint violation.
+	// Maps to core.CodeValidationError (HTTP 400).
 	CodeCheckViolation Code = "DB_CHECK_VIOLATION"
 	// CodeConnection indicates a connection error.
+	// Maps to core.CodeServiceUnavailable (HTTP 503).
 	CodeConnection Code = "DB_CONNECTION"
 	// CodeTimeout indicates a query or connection timeout.
+	// Maps to core.CodeServiceUnavailable (HTTP 503).
 	CodeTimeout Code = "DB_TIMEOUT"
 	// CodeSerialization indicates a serialization failure in transactions.
+	// Maps to core.CodeConflict (HTTP 409).
 	CodeSerialization Code = "DB_SERIALIZATION"
 	// CodeDeadlock indicates a deadlock was detected.
+	// Maps to core.CodeConflict (HTTP 409).
 	CodeDeadlock Code = "DB_DEADLOCK"
 	// CodeInvalidInput indicates invalid input data.
+	// Maps to core.CodeValidationError (HTTP 400).
 	CodeInvalidInput Code = "DB_INVALID_INPUT"
 	// CodeInternal indicates an unclassified internal database error.
+	// Maps to core.CodeInternalError (HTTP 500).
 	CodeInternal Code = "DB_INTERNAL"
 )
 
@@ -42,53 +60,81 @@ func (c Code) String() string {
 	return string(c)
 }
 
-// Error represents a database-specific error with a machine-readable code,
-// human-readable message, and optional wrapped error.
+// coreCodeMapping maps database error codes to core application error codes.
+// This enables unified error handling across the application.
+var coreCodeMapping = map[Code]coreerrors.Code{
+	CodeNotFound:       coreerrors.CodeNotFound,
+	CodeDuplicate:      coreerrors.CodeConflict,
+	CodeForeignKey:     coreerrors.CodeConflict,
+	CodeCheckViolation: coreerrors.CodeValidationError,
+	CodeConnection:     coreerrors.CodeServiceUnavailable,
+	CodeTimeout:        coreerrors.CodeServiceUnavailable,
+	CodeSerialization:  coreerrors.CodeConflict,
+	CodeDeadlock:       coreerrors.CodeConflict,
+	CodeInvalidInput:   coreerrors.CodeValidationError,
+	CodeInternal:       coreerrors.CodeInternalError,
+}
+
+// CoreCode returns the corresponding core.Code for this database error code.
+func (c Code) CoreCode() coreerrors.Code {
+	if coreCode, ok := coreCodeMapping[c]; ok {
+		return coreCode
+	}
+	return coreerrors.CodeInternalError
+}
+
+// Error represents a database-specific error with PostgreSQL-specific fields.
+// It embeds core.AppError to provide unified error handling across the application.
+// This means errors.IsNotFound() from txova-go-core/errors will work with database errors.
 type Error struct {
-	code       Code
-	message    string
-	cause      error
-	sqlState   string // PostgreSQL SQLSTATE code
-	detail     string // Additional detail from PostgreSQL
-	hint       string // Hint from PostgreSQL
-	tableName  string // Table name if available
-	column     string // Column name if available
-	constraint string // Constraint name if available
+	*coreerrors.AppError        // Embedded core error for unified error handling
+	code                 Code   // Database-specific error code
+	sqlState             string // PostgreSQL SQLSTATE code
+	detail               string // Additional detail from PostgreSQL
+	hint                 string // Hint from PostgreSQL
+	tableName            string // Table name if available
+	column               string // Column name if available
+	constraint           string // Constraint name if available
 }
 
 // New creates a new Error with the given code and message.
 func New(code Code, message string) *Error {
 	return &Error{
-		code:    code,
-		message: message,
+		AppError: coreerrors.New(code.CoreCode(), message),
+		code:     code,
 	}
 }
 
 // Wrap creates a new Error that wraps an existing error.
 func Wrap(code Code, message string, cause error) *Error {
 	return &Error{
-		code:    code,
-		message: message,
-		cause:   cause,
+		AppError: coreerrors.Wrap(code.CoreCode(), message, cause),
+		code:     code,
 	}
 }
 
 // Error implements the error interface.
+// It includes the database-specific code for more detailed error messages.
 func (e *Error) Error() string {
-	if e.cause != nil {
-		return fmt.Sprintf("%s: %s: %v", e.code, e.message, e.cause)
+	if e.AppError.Unwrap() != nil {
+		return fmt.Sprintf("%s: %s: %v", e.code, e.AppError.Message(), e.AppError.Unwrap())
 	}
-	return fmt.Sprintf("%s: %s", e.code, e.message)
+	return fmt.Sprintf("%s: %s", e.code, e.AppError.Message())
 }
 
-// Code returns the error code.
+// Code returns the database-specific error code.
 func (e *Error) Code() Code {
 	return e.code
 }
 
+// CoreCode returns the core application error code.
+func (e *Error) CoreCode() coreerrors.Code {
+	return e.AppError.Code()
+}
+
 // Message returns the human-readable error message.
 func (e *Error) Message() string {
-	return e.message
+	return e.AppError.Message()
 }
 
 // SQLState returns the PostgreSQL SQLSTATE code if available.
@@ -122,15 +168,31 @@ func (e *Error) Constraint() string {
 }
 
 // Unwrap returns the wrapped error, if any.
+// This enables errors.Unwrap() and errors.Is() to work correctly.
 func (e *Error) Unwrap() error {
-	return e.cause
+	return e.AppError.Unwrap()
 }
 
-// Is reports whether the target error is an Error with the same code.
+// Is reports whether the target error matches this error.
+// It checks both database-specific codes and core application codes.
 func (e *Error) Is(target error) bool {
+	// Check if target is a database Error with the same code.
 	var dbErr *Error
 	if errors.As(target, &dbErr) {
 		return e.code == dbErr.code
+	}
+	// Delegate to embedded AppError for core error matching.
+	return e.AppError.Is(target)
+}
+
+// As allows errors.As to extract the embedded AppError from this error.
+// This enables coreerrors.IsNotFound(), coreerrors.IsConflict(), etc. to work
+// with database errors, providing unified error handling across the application.
+func (e *Error) As(target any) bool {
+	// Allow extraction of the embedded AppError.
+	if appErrPtr, ok := target.(**coreerrors.AppError); ok {
+		*appErrPtr = e.AppError
+		return true
 	}
 	return false
 }
@@ -138,14 +200,14 @@ func (e *Error) Is(target error) bool {
 // WithMessage returns a new Error with the same code but a different message.
 func (e *Error) WithMessage(message string) *Error {
 	newErr := *e
-	newErr.message = message
+	newErr.AppError = e.AppError.WithMessage(message)
 	return &newErr
 }
 
 // WithCause returns a new Error wrapping a different cause.
 func (e *Error) WithCause(cause error) *Error {
 	newErr := *e
-	newErr.cause = cause
+	newErr.AppError = e.AppError.WithCause(cause)
 	return &newErr
 }
 
@@ -168,6 +230,7 @@ const (
 
 // FromPgError converts a PostgreSQL error to a domain Error.
 // It extracts the SQLSTATE code and maps it to the appropriate domain error code.
+// The returned error integrates with txova-go-core/errors for unified error handling.
 func FromPgError(err error) *Error {
 	if err == nil {
 		return nil
@@ -180,10 +243,9 @@ func FromPgError(err error) *Error {
 	}
 
 	code := mapSQLState(pgErr.Code)
-	dbErr := &Error{
+	return &Error{
+		AppError:   coreerrors.Wrap(code.CoreCode(), pgErr.Message, err),
 		code:       code,
-		message:    pgErr.Message,
-		cause:      err,
 		sqlState:   pgErr.Code,
 		detail:     pgErr.Detail,
 		hint:       pgErr.Hint,
@@ -191,8 +253,6 @@ func FromPgError(err error) *Error {
 		column:     pgErr.ColumnName,
 		constraint: pgErr.ConstraintName,
 	}
-
-	return dbErr
 }
 
 // mapSQLState maps a PostgreSQL SQLSTATE code to a domain error code.

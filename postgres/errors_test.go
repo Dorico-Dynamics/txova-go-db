@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	coreerrors "github.com/Dorico-Dynamics/txova-go-core/errors"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -480,4 +481,209 @@ func TestError_Hint(t *testing.T) {
 	if got.Hint() != "Try using a different value" {
 		t.Errorf("Hint() = %q, want %q", got.Hint(), "Try using a different value")
 	}
+}
+
+// TestCoreErrorIntegration verifies that database errors integrate correctly
+// with txova-go-core/errors, enabling unified error handling across the application.
+func TestCoreErrorIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("database NotFound works with core IsNotFound", func(t *testing.T) {
+		t.Parallel()
+		dbErr := NotFound("user not found")
+
+		// Database error should be detectable by core error helpers.
+		if !coreerrors.IsNotFound(dbErr) {
+			t.Error("coreerrors.IsNotFound(dbErr) should be true for DB_NOT_FOUND")
+		}
+	})
+
+	t.Run("database Duplicate works with core IsConflict", func(t *testing.T) {
+		t.Parallel()
+		dbErr := Duplicate("email already exists")
+
+		if !coreerrors.IsConflict(dbErr) {
+			t.Error("coreerrors.IsConflict(dbErr) should be true for DB_DUPLICATE")
+		}
+	})
+
+	t.Run("database ForeignKey works with core IsConflict", func(t *testing.T) {
+		t.Parallel()
+		dbErr := ForeignKey("referenced user does not exist")
+
+		if !coreerrors.IsConflict(dbErr) {
+			t.Error("coreerrors.IsConflict(dbErr) should be true for DB_FOREIGN_KEY")
+		}
+	})
+
+	t.Run("database Connection works with core IsServiceUnavailable", func(t *testing.T) {
+		t.Parallel()
+		dbErr := Connection("connection refused")
+
+		if !coreerrors.IsServiceUnavailable(dbErr) {
+			t.Error("coreerrors.IsServiceUnavailable(dbErr) should be true for DB_CONNECTION")
+		}
+	})
+
+	t.Run("database Timeout works with core IsServiceUnavailable", func(t *testing.T) {
+		t.Parallel()
+		dbErr := Timeout("query timeout")
+
+		if !coreerrors.IsServiceUnavailable(dbErr) {
+			t.Error("coreerrors.IsServiceUnavailable(dbErr) should be true for DB_TIMEOUT")
+		}
+	})
+
+	t.Run("database Internal works with core IsInternalError", func(t *testing.T) {
+		t.Parallel()
+		dbErr := Internal("unexpected error")
+
+		if !coreerrors.IsInternalError(dbErr) {
+			t.Error("coreerrors.IsInternalError(dbErr) should be true for DB_INTERNAL")
+		}
+	})
+
+	t.Run("database CheckViolation works with core IsValidationError", func(t *testing.T) {
+		t.Parallel()
+		dbErr := New(CodeCheckViolation, "check constraint failed")
+
+		if !coreerrors.IsValidationError(dbErr) {
+			t.Error("coreerrors.IsValidationError(dbErr) should be true for DB_CHECK_VIOLATION")
+		}
+	})
+
+	t.Run("database InvalidInput works with core IsValidationError", func(t *testing.T) {
+		t.Parallel()
+		dbErr := New(CodeInvalidInput, "null value not allowed")
+
+		if !coreerrors.IsValidationError(dbErr) {
+			t.Error("coreerrors.IsValidationError(dbErr) should be true for DB_INVALID_INPUT")
+		}
+	})
+}
+
+// TestCoreCodeMapping verifies the mapping from database codes to core codes.
+func TestCoreCodeMapping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		dbCode   Code
+		coreCode coreerrors.Code
+	}{
+		{CodeNotFound, coreerrors.CodeNotFound},
+		{CodeDuplicate, coreerrors.CodeConflict},
+		{CodeForeignKey, coreerrors.CodeConflict},
+		{CodeCheckViolation, coreerrors.CodeValidationError},
+		{CodeConnection, coreerrors.CodeServiceUnavailable},
+		{CodeTimeout, coreerrors.CodeServiceUnavailable},
+		{CodeSerialization, coreerrors.CodeConflict},
+		{CodeDeadlock, coreerrors.CodeConflict},
+		{CodeInvalidInput, coreerrors.CodeValidationError},
+		{CodeInternal, coreerrors.CodeInternalError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.dbCode.String(), func(t *testing.T) {
+			t.Parallel()
+			if got := tt.dbCode.CoreCode(); got != tt.coreCode {
+				t.Errorf("CoreCode() = %v, want %v", got, tt.coreCode)
+			}
+		})
+	}
+}
+
+// TestHTTPStatusMapping verifies that database errors have correct HTTP status codes.
+func TestHTTPStatusMapping(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        *Error
+		wantStatus int
+	}{
+		{"NotFound", NotFound("not found"), 404},
+		{"Duplicate", Duplicate("duplicate"), 409},
+		{"ForeignKey", ForeignKey("fk error"), 409},
+		{"Connection", Connection("conn error"), 503},
+		{"Timeout", Timeout("timeout"), 503},
+		{"Internal", Internal("internal"), 500},
+		{"CheckViolation", New(CodeCheckViolation, "check"), 400},
+		{"InvalidInput", New(CodeInvalidInput, "invalid"), 400},
+		{"Serialization", New(CodeSerialization, "serial"), 409},
+		{"Deadlock", New(CodeDeadlock, "deadlock"), 409},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.err.HTTPStatus(); got != tt.wantStatus {
+				t.Errorf("HTTPStatus() = %d, want %d", got, tt.wantStatus)
+			}
+		})
+	}
+}
+
+// TestErrorsIsWithCoreAppError verifies errors.Is works across error types.
+func TestErrorsIsWithCoreAppError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("database error matches core error with same code", func(t *testing.T) {
+		t.Parallel()
+		dbErr := NotFound("user not found")
+		coreErr := coreerrors.NotFound("resource not found")
+
+		// Both should be considered "not found" errors.
+		if !errors.Is(dbErr, coreErr) {
+			t.Error("errors.Is(dbErr, coreErr) should be true for matching codes")
+		}
+	})
+
+	t.Run("database error does not match core error with different code", func(t *testing.T) {
+		t.Parallel()
+		dbErr := NotFound("user not found")
+		coreErr := coreerrors.Conflict("conflict")
+
+		if errors.Is(dbErr, coreErr) {
+			t.Error("errors.Is(dbErr, coreErr) should be false for different codes")
+		}
+	})
+}
+
+// TestFromPgErrorCoreIntegration verifies FromPgError produces errors compatible with core.
+func TestFromPgErrorCoreIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unique violation maps to Conflict", func(t *testing.T) {
+		t.Parallel()
+		pgErr := &pgconn.PgError{
+			Code:    "23505",
+			Message: "duplicate key",
+		}
+
+		dbErr := FromPgError(pgErr)
+
+		if !coreerrors.IsConflict(dbErr) {
+			t.Error("coreerrors.IsConflict should be true for unique violation")
+		}
+		if dbErr.HTTPStatus() != 409 {
+			t.Errorf("HTTPStatus() = %d, want 409", dbErr.HTTPStatus())
+		}
+	})
+
+	t.Run("connection error maps to ServiceUnavailable", func(t *testing.T) {
+		t.Parallel()
+		pgErr := &pgconn.PgError{
+			Code:    "08000",
+			Message: "connection exception",
+		}
+
+		dbErr := FromPgError(pgErr)
+
+		if !coreerrors.IsServiceUnavailable(dbErr) {
+			t.Error("coreerrors.IsServiceUnavailable should be true for connection error")
+		}
+		if dbErr.HTTPStatus() != 503 {
+			t.Errorf("HTTPStatus() = %d, want 503", dbErr.HTTPStatus())
+		}
+	})
 }
