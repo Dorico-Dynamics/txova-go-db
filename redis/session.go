@@ -163,10 +163,23 @@ func (s *SessionStore) CreateWithTTL(ctx context.Context, userID string, ttl tim
 	sessionKey := s.sessionKey(session.ID)
 	userSessionsKey := s.userSessionsKey(userID)
 
+	// Get current TTL of user sessions index to avoid overwriting with shorter TTL
+	currentTTL, err := s.client.client.TTL(ctx, userSessionsKey).Result()
+	if err != nil {
+		s.logger.Error("failed to get user sessions index TTL", "user_id", userID, "error", err)
+		return nil, FromRedisError(err)
+	}
+
+	// Use the maximum of current TTL and new session TTL to preserve longer-lived sessions
+	indexTTL := ttl
+	if currentTTL > 0 && currentTTL > ttl {
+		indexTTL = currentTTL
+	}
+
 	pipe := s.client.client.Pipeline()
 	pipe.Set(ctx, sessionKey, data, ttl)
 	pipe.SAdd(ctx, userSessionsKey, session.ID)
-	pipe.Expire(ctx, userSessionsKey, ttl) // Refresh user sessions index TTL
+	pipe.Expire(ctx, userSessionsKey, indexTTL)
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		s.logger.Error("session create error", "session_id", session.ID, "user_id", userID, "error", err)
