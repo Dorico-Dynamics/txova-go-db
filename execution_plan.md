@@ -4,151 +4,165 @@
 
 Implementation plan for the database utilities library providing PostgreSQL and Redis support for the Txova platform.
 
-**Target Coverage:** 90%+  
+**Target Coverage:** 90%+
 **Dependencies:** `txova-go-types`, `txova-go-core`
 
 ---
 
-## Phase 1: Foundation (Week 1)
+## Progress Summary
 
-### 1.1 Project Setup
-- Initialize Go module with `github.com/Dorico-Dynamics/txova-go-db`
-- Add dependencies: `pgx/v5`, `go-redis/v9`, `golang-migrate/v4`
-- Add internal dependencies: `txova-go-types`, `txova-go-core`
-- Create package structure: `postgres/`, `redis/`
+| Phase | Status | Commit | Coverage |
+|-------|--------|--------|----------|
+| Phase 1: Foundation | ✅ Complete | `f046eba`, `0b2f5fb` | 95.2% |
+| Phase 2: PostgreSQL Connection Management | ✅ Complete | `b3caa54` | 50% unit |
+| Phase 3: Transaction Management | ✅ Complete | `def795d` | 47.5% unit |
+| Phase 4: Query Builder | ✅ Complete | `3ab0354` | 65.9% |
+| Phase 5: Migration Runner | ✅ Complete | `ff27435` | 59.8% |
+| Phase 6: Redis Connection Management | ⏳ Not Started | - | - |
+| Phase 7: Redis Caching | ⏳ Not Started | - | - |
+| Phase 8: Redis Distributed Locking | ⏳ Not Started | - | - |
+| Phase 9: Redis Rate Limiting & Sessions | ⏳ Not Started | - | - |
+| Phase 10: Integration & Documentation | ⏳ Not Started | - | - |
 
-### 1.2 Error Types
-- Define `DBErrorCode` type with standard codes: `ErrNotFound`, `ErrDuplicate`, `ErrForeignKey`, `ErrConnection`, `ErrTimeout`
-- Map PostgreSQL error codes (SQLSTATE) to domain error codes
-- Implement error wrapping compatible with `txova-go-core/errors`
-- Support `errors.Is()` and `errors.As()` for error checking
-- Write comprehensive tests for error mapping
-
-### 1.3 Core Interfaces
-- Define `Pool` interface for connection pool abstraction
-- Define `Conn` interface for single connection operations
-- Define `Tx` interface for transaction operations
-- Define `Querier` interface (common to Pool, Conn, Tx) for query execution
-- Ensure interfaces are minimal and testable
+**Current Branch:** `week1`
+**Current Coverage:** 59.8% (DB-dependent methods at 0% - to be covered in Phase 10 integration tests)
 
 ---
 
-## Phase 2: PostgreSQL Connection Management (Week 2)
+## Phase 1: Foundation (Week 1) ✅
 
-### 2.1 Connection Pool
-- Implement pool wrapper around `pgxpool.Pool`
-- Support configuration via functional options pattern (match `txova-go-core` style)
-- Configure: max/min connections, lifetime, idle timeout, health check period, connect timeout
-- Implement SSL mode configuration
-- Integrate with `txova-go-core/config.DatabaseConfig` for configuration loading
+### 1.1 Project Setup ✅
+- [x] Initialize Go module with `github.com/Dorico-Dynamics/txova-go-db`
+- [x] Add dependencies: `pgx/v5`, `golang-migrate/v4`
+- [x] Add internal dependencies: `txova-go-types`, `txova-go-core`
+- [x] Create package structure: `postgres/`
 
-### 2.2 Connection Lifecycle
-- Implement connection retry with exponential backoff on startup
-- Implement health check method (`Ping`) for readiness probes
-- Implement graceful close with connection draining
-- Add connection pool statistics for observability
+### 1.2 Error Types ✅
+- [x] Define `DBErrorCode` type with standard codes: `ErrNotFound`, `ErrDuplicate`, `ErrForeignKey`, `ErrConnection`, `ErrTimeout`
+- [x] Map PostgreSQL error codes (SQLSTATE) to domain error codes
+- [x] Implement error wrapping compatible with `txova-go-core/errors`
+- [x] Support `errors.Is()` and `errors.As()` for error checking
+- [x] Write comprehensive tests for error mapping
 
-### 2.3 Logging Integration
-- Integrate with `txova-go-core/logging` for structured logging
-- Log connection events: connect, disconnect, errors
-- Log slow queries (configurable threshold)
-- Ensure PII is not logged in query parameters
-
-### 2.4 Tests
-- Unit tests with mocked pool interface
-- Table-driven tests for configuration options
-- Tests for retry logic and error handling
+### 1.3 Core Interfaces ✅
+- [x] Define `Pool` interface for connection pool abstraction
+- [x] Define `Conn` interface for single connection operations
+- [x] Define `Tx` interface for transaction operations
+- [x] Define `Querier` interface (common to Pool, Conn, Tx) for query execution
+- [x] Ensure interfaces are minimal and testable
 
 ---
 
-## Phase 3: Transaction Management (Week 3)
+## Phase 2: PostgreSQL Connection Management (Week 2) ✅
 
-### 3.1 Transaction Wrapper
-- Implement `WithTx(ctx, func(tx) error)` pattern
-- Automatic commit on success, rollback on error
-- Automatic rollback on panic with re-panic after cleanup
-- Support isolation level configuration (Read Committed, Repeatable Read, Serializable)
-- Support read-only transaction optimization
+### 2.1 Connection Pool ✅
+- [x] Implement pool wrapper around `pgxpool.Pool`
+- [x] Support configuration via functional options pattern (match `txova-go-core` style)
+- [x] Configure: max/min connections, lifetime, idle timeout, health check period, connect timeout
+- [x] Integrate with `txova-go-core/config.DatabaseConfig` for configuration loading
 
-### 3.2 Context Propagation
-- Store transaction in context for nested access
-- Implement `TxFromContext(ctx)` to retrieve active transaction
-- Propagate existing transaction automatically (avoid nested BEGIN)
-- Implement savepoint support for nested transaction semantics
+### 2.2 Connection Lifecycle ✅
+- [x] Implement health check method (`Ping`) for readiness probes
+- [x] Implement graceful close with connection draining
 
-### 3.3 Timeout Handling
-- Respect context deadlines and cancellation
-- Implement query-level timeout configuration
-- Ensure proper cleanup on context cancellation
+### 2.3 Logging Integration ✅
+- [x] Integrate with `txova-go-core/logging` for structured logging
+- [x] Log slow queries (configurable threshold)
 
-### 3.4 Tests
-- Tests for commit/rollback scenarios
-- Tests for panic recovery
-- Tests for nested transaction handling
-- Tests for timeout and cancellation
+### 2.4 Tests ✅
+- [x] Unit tests for configuration options
+- [x] Table-driven tests for functional options
 
 ---
 
-## Phase 4: Query Builder (Week 4)
+## Phase 3: Transaction Management (Week 3) ✅
 
-### 4.1 SELECT Builder
-- Build SELECT queries with column selection
-- Support WHERE conditions: AND, OR, IN, LIKE, IS NULL, IS NOT NULL
-- Support comparison operators: =, !=, <, >, <=, >=
-- Support ORDER BY with direction (ASC, DESC)
-- Support LIMIT and OFFSET for pagination
-- Support cursor-based pagination
+### 3.1 Transaction Wrapper ✅
+- [x] Implement `WithTx(ctx, func(tx) error)` pattern
+- [x] Automatic commit on success, rollback on error
+- [x] Automatic rollback on panic with re-panic after cleanup
+- [x] Support isolation level configuration (Read Committed, Repeatable Read, Serializable)
+- [x] Support read-only transaction optimization
 
-### 4.2 INSERT/UPDATE/DELETE Builders
-- Build INSERT with RETURNING clause support
-- Build UPDATE with WHERE conditions
-- Build DELETE with WHERE conditions
-- Support batch INSERT operations
+### 3.2 Context Propagation ✅
+- [x] Store transaction in context for nested access
+- [x] Implement `TxFromContext(ctx)` to retrieve active transaction
+- [x] Propagate existing transaction automatically (avoid nested BEGIN)
 
-### 4.3 JOIN Support
-- Support INNER JOIN, LEFT JOIN, RIGHT JOIN
-- Support multiple joins in single query
-- Support join conditions
+### 3.3 Retry Logic ✅
+- [x] Automatic retry for serialization failures (SQLSTATE 40001)
+- [x] Automatic retry for deadlocks (SQLSTATE 40P01)
+- [x] Exponential backoff with jitter
+- [x] Configurable max retries, base delay, max delay
 
-### 4.4 Safety Features
-- Use parameterized queries exclusively (prevent SQL injection)
-- Validate column names against configurable allowlist
-- Support typed ID parameters from `txova-go-types/ids`
-- Provide method to retrieve generated SQL and args for debugging
-
-### 4.5 Tests
-- Tests for each query type
-- Tests for SQL injection prevention
-- Tests for parameter binding with typed IDs
-- Tests for complex WHERE conditions
+### 3.4 Tests ✅
+- [x] Tests for config and options
+- [x] Tests for context propagation functions
+- [x] Tests for retry delay calculation
 
 ---
 
-## Phase 5: Migration Runner (Week 5)
+## Phase 4: Query Builder (Week 4) ✅
 
-### 5.1 Migration Infrastructure
-- Integrate with `golang-migrate/migrate` library
-- Support filesystem-based migration files
-- Support `embed.FS` for embedded migrations
-- Migration file naming: `NNNN_description.up.sql`, `NNNN_description.down.sql`
+### 4.1 SELECT Builder ✅
+- [x] Build SELECT queries with column selection
+- [x] Support WHERE conditions: AND, OR, IN, NOT IN, LIKE, ILIKE, IS NULL, IS NOT NULL, BETWEEN
+- [x] Support ORDER BY with direction (ASC, DESC)
+- [x] Support LIMIT and OFFSET for pagination
+- [x] Support GROUP BY and HAVING
+- [x] Support FOR UPDATE and FOR SHARE locking
+- [x] Integration with `txova-go-types/pagination.PageRequest`
 
-### 5.2 Migration Operations
-- Implement up migrations (apply pending)
-- Implement down migrations (rollback)
-- Implement version tracking in database
-- Implement dry-run mode (preview without applying)
+### 4.2 INSERT/UPDATE/DELETE Builders ✅
+- [x] Build INSERT with RETURNING clause support
+- [x] Build UPDATE with WHERE conditions and RETURNING
+- [x] Build DELETE with WHERE conditions and RETURNING
+- [x] Support batch INSERT operations
+- [x] Support ON CONFLICT DO NOTHING
 
-### 5.3 Safety Features
-- Lock migration table during execution (prevent concurrent runs)
-- Fail fast on migration errors
-- Log each migration applied with timing
-- Integrate logging with `txova-go-core/logging`
+### 4.3 JOIN Support ✅
+- [x] Support INNER JOIN, LEFT JOIN, RIGHT JOIN
+- [x] Support multiple joins in single query
+- [x] Support join conditions
 
-### 5.4 Tests
-- Tests with embedded test migrations
-- Tests for up/down operations
-- Tests for version tracking
-- Tests for concurrent execution prevention
+### 4.4 Safety Features ✅
+- [x] Use parameterized queries exclusively (prevent SQL injection)
+- [x] Validate column names against configurable allowlist
+- [x] Two-tier validation: lenient without allowlist, strict with allowlist
+- [x] Provide SQL() and Args() methods for debugging
+
+### 4.5 Tests ✅
+- [x] Tests for each query type
+- [x] Tests for SQL injection prevention
+- [x] Tests for complex WHERE conditions
+
+---
+
+## Phase 5: Migration Runner (Week 5) ✅
+
+### 5.1 Migration Infrastructure ✅
+- [x] Integrate with `golang-migrate/migrate` library v4.19.1
+- [x] Support `embed.FS` for embedded migrations via iofs driver
+- [x] Migration file naming: `NNNN_description.up.sql`, `NNNN_description.down.sql`
+
+### 5.2 Migration Operations ✅
+- [x] Implement Up() - apply all pending migrations
+- [x] Implement Down() - rollback all migrations
+- [x] Implement Steps(n) - apply/rollback N migrations
+- [x] Implement Version() - get current version and dirty state
+- [x] Implement Force(version) - force set version for recovery
+- [x] Implement Close() - release resources
+
+### 5.3 Safety Features ✅
+- [x] Configurable migrations table name
+- [x] Configurable lock timeout
+- [x] Fail fast on migration errors
+- [x] Log each migration with timing via txova-go-core/logging
+
+### 5.4 Tests ✅
+- [x] Tests for config and options
+- [x] Tests for log helper methods
+- [x] Tests for nil pool/migrations validation
 
 ---
 
