@@ -101,7 +101,7 @@ func (u *UpdateBuilder) validateUpdate() error {
 
 // buildSetClause generates the SET portion and returns args and next arg index.
 func (u *UpdateBuilder) buildSetClause(argIndex int) (string, []any, int) {
-	var args []any
+	args := make([]any, 0, len(u.sets))
 	setParts := make([]string, len(u.sets))
 	for i, s := range u.sets {
 		setParts[i] = fmt.Sprintf("%s = $%d", s.column, argIndex)
@@ -152,7 +152,9 @@ func (u *UpdateBuilder) Build() (string, []any, error) {
 	whereClause, whereArgs, _ := u.buildWhereClause(argIndex)
 	sb.WriteString(whereClause)
 
-	args := append(setArgs, whereArgs...)
+	args := make([]any, 0, len(setArgs)+len(whereArgs))
+	args = append(args, setArgs...)
+	args = append(args, whereArgs...)
 
 	if len(u.returning) > 0 {
 		sb.WriteString(" RETURNING ")

@@ -113,7 +113,11 @@ func (i *InsertBuilder) validateInsert() error {
 
 // buildValuesClause generates the VALUES portion and collects arguments.
 func (i *InsertBuilder) buildValuesClause() (string, []any) {
-	var args []any
+	totalArgs := 0
+	for _, row := range i.values {
+		totalArgs += len(row)
+	}
+	args := make([]any, 0, totalArgs)
 	argIndex := 1
 	valueParts := make([]string, len(i.values))
 

@@ -433,7 +433,7 @@ func (s *SelectBuilder) Build() (string, []any, error) {
 	}
 
 	var sb strings.Builder
-	var args []any
+	args := make([]any, 0, len(s.joins)+len(s.where)+len(s.having))
 	argIndex := 1
 
 	sb.WriteString(s.buildSelectClause())
