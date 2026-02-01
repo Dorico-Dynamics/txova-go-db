@@ -310,28 +310,24 @@ func (s *SelectBuilder) ForShare() *SelectBuilder {
 	return s
 }
 
-// Build generates the SQL query and returns it with the arguments.
-func (s *SelectBuilder) Build() (string, []any, error) {
-	// Validate table name
+// validateSelect checks that the select has valid table and columns.
+func (s *SelectBuilder) validateSelect() error {
 	if err := validateTableName(s.table); err != nil {
-		return "", nil, err
+		return err
 	}
-
-	// Validate columns if allowlist is enabled
 	for _, col := range s.columns {
 		if col != "*" {
 			if err := s.validateColumnName(col); err != nil {
-				return "", nil, err
+				return err
 			}
 		}
 	}
+	return nil
+}
 
-	var args []any
-	argIndex := 1
-
+// buildSelectClause generates the SELECT portion.
+func (s *SelectBuilder) buildSelectClause() string {
 	var sb strings.Builder
-
-	// SELECT clause
 	sb.WriteString("SELECT ")
 	if s.distinct {
 		sb.WriteString("DISTINCT ")
@@ -341,12 +337,18 @@ func (s *SelectBuilder) Build() (string, []any, error) {
 	} else {
 		sb.WriteString(strings.Join(s.columns, ", "))
 	}
-
-	// FROM clause
 	sb.WriteString(" FROM ")
 	sb.WriteString(s.table)
+	return sb.String()
+}
 
-	// JOIN clauses
+// buildJoinClauses generates the JOIN portions and returns args and next arg index.
+func (s *SelectBuilder) buildJoinClauses(argIndex int) (string, []any, int) {
+	if len(s.joins) == 0 {
+		return "", nil, argIndex
+	}
+	var sb strings.Builder
+	var args []any
 	for _, j := range s.joins {
 		sb.WriteString(" ")
 		sb.WriteString(string(j.joinType))
@@ -358,79 +360,104 @@ func (s *SelectBuilder) Build() (string, []any, error) {
 		args = append(args, j.args...)
 		argIndex = newIndex
 	}
+	return sb.String(), args, argIndex
+}
 
-	// WHERE clause
-	if len(s.where) > 0 {
-		sb.WriteString(" WHERE ")
-		for i, w := range s.where {
-			if i > 0 {
-				if w.isOr {
-					sb.WriteString(" OR ")
-				} else {
-					sb.WriteString(" AND ")
-				}
+// buildConditionClauses generates WHERE or HAVING clauses from whereClause slice.
+func buildConditionClauses(clauses []whereClause, keyword string, argIndex int) (string, []any, int) {
+	if len(clauses) == 0 {
+		return "", nil, argIndex
+	}
+	var sb strings.Builder
+	var args []any
+	sb.WriteString(keyword)
+	for i, w := range clauses {
+		if i > 0 {
+			if w.isOr {
+				sb.WriteString(" OR ")
+			} else {
+				sb.WriteString(" AND ")
 			}
-			condition, newIndex := replacePlaceholders(w.condition, argIndex)
-			sb.WriteString(condition)
-			args = append(args, w.args...)
-			argIndex = newIndex
 		}
+		condition, newIndex := replacePlaceholders(w.condition, argIndex)
+		sb.WriteString(condition)
+		args = append(args, w.args...)
+		argIndex = newIndex
+	}
+	return sb.String(), args, argIndex
+}
+
+// buildOrderByClause generates the ORDER BY portion.
+func (s *SelectBuilder) buildOrderByClause() string {
+	if len(s.orderBy) == 0 {
+		return ""
+	}
+	orderParts := make([]string, len(s.orderBy))
+	for i, o := range s.orderBy {
+		dir := strings.ToUpper(string(o.direction))
+		if dir == "" {
+			dir = "ASC"
+		}
+		orderParts[i] = fmt.Sprintf("%s %s", o.column, dir)
+	}
+	return " ORDER BY " + strings.Join(orderParts, ", ")
+}
+
+// buildLimitOffsetClause generates the LIMIT and OFFSET portions.
+func (s *SelectBuilder) buildLimitOffsetClause() string {
+	var sb strings.Builder
+	if s.limit != nil {
+		sb.WriteString(fmt.Sprintf(" LIMIT %d", *s.limit))
+	}
+	if s.offset != nil {
+		sb.WriteString(fmt.Sprintf(" OFFSET %d", *s.offset))
+	}
+	return sb.String()
+}
+
+// buildLockingClause generates the FOR UPDATE/FOR SHARE portion.
+func (s *SelectBuilder) buildLockingClause() string {
+	if s.forUpdate {
+		return " FOR UPDATE"
+	}
+	if s.forShare {
+		return " FOR SHARE"
+	}
+	return ""
+}
+
+// Build generates the SQL query and returns it with the arguments.
+func (s *SelectBuilder) Build() (string, []any, error) {
+	if err := s.validateSelect(); err != nil {
+		return "", nil, err
 	}
 
-	// GROUP BY clause
+	var sb strings.Builder
+	var args []any
+	argIndex := 1
+
+	sb.WriteString(s.buildSelectClause())
+
+	joinClause, joinArgs, argIndex := s.buildJoinClauses(argIndex)
+	sb.WriteString(joinClause)
+	args = append(args, joinArgs...)
+
+	whereClause, whereArgs, argIndex := buildConditionClauses(s.where, " WHERE ", argIndex)
+	sb.WriteString(whereClause)
+	args = append(args, whereArgs...)
+
 	if len(s.groupBy) > 0 {
 		sb.WriteString(" GROUP BY ")
 		sb.WriteString(strings.Join(s.groupBy, ", "))
 	}
 
-	// HAVING clause
-	if len(s.having) > 0 {
-		sb.WriteString(" HAVING ")
-		for i, h := range s.having {
-			if i > 0 {
-				if h.isOr {
-					sb.WriteString(" OR ")
-				} else {
-					sb.WriteString(" AND ")
-				}
-			}
-			condition, newIndex := replacePlaceholders(h.condition, argIndex)
-			sb.WriteString(condition)
-			args = append(args, h.args...)
-			argIndex = newIndex
-		}
-	}
+	havingClause, havingArgs, _ := buildConditionClauses(s.having, " HAVING ", argIndex)
+	sb.WriteString(havingClause)
+	args = append(args, havingArgs...)
 
-	// ORDER BY clause
-	if len(s.orderBy) > 0 {
-		sb.WriteString(" ORDER BY ")
-		orderParts := make([]string, len(s.orderBy))
-		for i, o := range s.orderBy {
-			dir := strings.ToUpper(string(o.direction))
-			if dir == "" {
-				dir = "ASC"
-			}
-			orderParts[i] = fmt.Sprintf("%s %s", o.column, dir)
-		}
-		sb.WriteString(strings.Join(orderParts, ", "))
-	}
-
-	// LIMIT clause
-	if s.limit != nil {
-		sb.WriteString(fmt.Sprintf(" LIMIT %d", *s.limit))
-	}
-
-	// OFFSET clause
-	if s.offset != nil {
-		sb.WriteString(fmt.Sprintf(" OFFSET %d", *s.offset))
-	}
-
-	// Locking clause
-	if s.forUpdate {
-		sb.WriteString(" FOR UPDATE")
-	} else if s.forShare {
-		sb.WriteString(" FOR SHARE")
-	}
+	sb.WriteString(s.buildOrderByClause())
+	sb.WriteString(s.buildLimitOffsetClause())
+	sb.WriteString(s.buildLockingClause())
 
 	return sb.String(), args, nil
 }
