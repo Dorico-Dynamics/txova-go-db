@@ -136,6 +136,9 @@ func (i *InsertBuilder) validateInsertValues() error {
 // validateReturningColumns validates the RETURNING columns.
 func (i *InsertBuilder) validateReturningColumns() error {
 	for _, col := range i.returning {
+		if col == "*" {
+			continue
+		}
 		if err := i.validateColumnName(col); err != nil {
 			return fmt.Errorf("invalid returning column: %q", col)
 		}
