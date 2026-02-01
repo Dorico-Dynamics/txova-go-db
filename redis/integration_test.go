@@ -42,7 +42,15 @@ func setupRedisContainer(t *testing.T) (*Client, func()) {
 		t.Fatalf("failed to ping redis: %v", err)
 	}
 
+	// Flush database to ensure clean state for each test
+	if err := client.client.FlushDB(ctx).Err(); err != nil {
+		client.Close()
+		t.Fatalf("failed to flush redis: %v", err)
+	}
+
 	cleanup := func() {
+		// Flush again on cleanup to leave clean state
+		_ = client.client.FlushDB(context.Background()).Err()
 		_ = client.Close()
 	}
 
