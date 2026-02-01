@@ -109,13 +109,13 @@ jobs:
           name: coverage
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: SonarQube Quality Gate Check
-        uses: sonarsource/sonarqube-quality-gate-action@v1.2.0
+        uses: sonarsource/sonarqube-quality-gate-action@v1.3.0
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
