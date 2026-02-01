@@ -5,35 +5,45 @@ package redis
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"testing"
 	"time"
-
-	"github.com/testcontainers/testcontainers-go/modules/redis"
 )
+
+// getRedisAddress returns the Redis address from environment or default.
+func getRedisAddress() string {
+	host := os.Getenv("REDIS_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	port := os.Getenv("REDIS_PORT")
+	if port == "" {
+		port = "6379"
+	}
+	return fmt.Sprintf("%s:%s", host, port)
+}
 
 func setupRedisContainer(t *testing.T) (*Client, func()) {
 	t.Helper()
 
-	ctx := context.Background()
+	addr := getRedisAddress()
+	t.Logf("Connecting to Redis at %s", addr)
 
-	redisContainer, err := redis.Run(ctx, "redis:7-alpine")
-	if err != nil {
-		t.Fatalf("failed to start redis container: %v", err)
-	}
-
-	endpoint, err := redisContainer.Endpoint(ctx, "")
-	if err != nil {
-		t.Fatalf("failed to get redis endpoint: %v", err)
-	}
-
-	client, err := New(WithAddress(endpoint))
+	client, err := New(WithAddress(addr))
 	if err != nil {
 		t.Fatalf("failed to create redis client: %v", err)
 	}
 
+	// Verify connection
+	ctx := context.Background()
+	if err := client.Ping(ctx); err != nil {
+		client.Close()
+		t.Fatalf("failed to ping redis: %v", err)
+	}
+
 	cleanup := func() {
 		_ = client.Close()
-		_ = redisContainer.Terminate(ctx)
 	}
 
 	return client, cleanup

@@ -1,6 +1,6 @@
 // Package postgres provides PostgreSQL tests using docker-compose infrastructure.
 //
-//go:build docker
+//go:build integration
 
 package postgres
 
