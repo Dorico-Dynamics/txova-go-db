@@ -141,7 +141,17 @@ func WithLogger(logger *logging.Logger) Option {
 func FromDatabaseConfig(dbCfg *config.DatabaseConfig, opts ...Option) PoolConfig {
 	cfg := DefaultPoolConfig()
 	cfg.ConnString = dbCfg.DSN()
-	cfg.MaxConns = int32(dbCfg.MaxConnections)
+
+	// Safely convert MaxConnections to int32 with bounds checking
+	maxConns := dbCfg.MaxConnections
+	const maxInt32 = int(^uint32(0) >> 1) // 2147483647
+	if maxConns > maxInt32 {
+		maxConns = maxInt32
+	}
+	if maxConns < 1 {
+		maxConns = 1
+	}
+	cfg.MaxConns = int32(maxConns) // #nosec G115 -- bounds checked above
 
 	for _, opt := range opts {
 		opt(&cfg)

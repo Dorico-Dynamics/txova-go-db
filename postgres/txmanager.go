@@ -214,16 +214,24 @@ func (m *txManager) executeTx(ctx context.Context, opts pgx.TxOptions, fn func(t
 // calculateRetryDelay calculates the delay before the next retry attempt.
 // Uses exponential backoff with jitter.
 func (m *txManager) calculateRetryDelay(attempt int) time.Duration {
+	// Bound attempt to prevent overflow (max 30 gives ~1 billion multiplier)
+	if attempt < 1 {
+		attempt = 1
+	}
+	if attempt > 30 {
+		attempt = 30
+	}
+
 	// Exponential backoff: baseDelay * 2^(attempt-1)
-	delay := m.config.RetryBaseDelay * time.Duration(1<<uint(attempt-1))
+	delay := m.config.RetryBaseDelay * time.Duration(1<<(attempt-1))
 
 	// Cap at max delay.
 	if delay > m.config.RetryMaxDelay {
 		delay = m.config.RetryMaxDelay
 	}
 
-	// Add jitter (±25%).
-	jitter := time.Duration(rand.Int64N(int64(delay) / 2))
+	// Add jitter (±25%) using math/rand which is acceptable for non-security purposes.
+	jitter := time.Duration(rand.Int64N(int64(delay) / 2)) // #nosec G404 -- not security-sensitive
 	delay = delay - delay/4 + jitter
 
 	return delay
