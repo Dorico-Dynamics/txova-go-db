@@ -315,15 +315,33 @@ func (s *SelectBuilder) validateSelect() error {
 	if err := validateTableName(s.table); err != nil {
 		return err
 	}
+	if err := s.validateSelectColumns(); err != nil {
+		return err
+	}
+	if err := s.validateGroupByColumns(); err != nil {
+		return err
+	}
+	if err := s.validateOrderByColumns(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateSelectColumns validates the SELECT columns.
+func (s *SelectBuilder) validateSelectColumns() error {
 	for _, col := range s.columns {
-		if col != "*" {
-			if err := s.validateColumnName(col); err != nil {
-				return err
-			}
+		if col == "*" {
+			continue
+		}
+		if err := s.validateColumnName(col); err != nil {
+			return err
 		}
 	}
+	return nil
+}
 
-	// Validate GROUP BY entries
+// validateGroupByColumns validates the GROUP BY entries.
+func (s *SelectBuilder) validateGroupByColumns() error {
 	for _, entry := range s.groupBy {
 		entry = strings.TrimSpace(entry)
 		if entry == "" || entry == "*" {
@@ -333,8 +351,11 @@ func (s *SelectBuilder) validateSelect() error {
 			return fmt.Errorf("invalid group by column: %q", entry)
 		}
 	}
+	return nil
+}
 
-	// Validate ORDER BY entries
+// validateOrderByColumns validates the ORDER BY entries.
+func (s *SelectBuilder) validateOrderByColumns() error {
 	for _, entry := range s.orderBy {
 		col := strings.TrimSpace(entry.column)
 		if col == "" || col == "*" {
@@ -344,7 +365,6 @@ func (s *SelectBuilder) validateSelect() error {
 			return fmt.Errorf("invalid order by column: %q", col)
 		}
 	}
-
 	return nil
 }
 
