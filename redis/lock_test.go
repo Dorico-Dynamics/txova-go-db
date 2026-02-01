@@ -288,7 +288,8 @@ func TestLock_Verify_NotAcquired(t *testing.T) {
 func TestLocker_AcquireErrors(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test connection errors
+	client, _ := New(WithAddress("localhost:59999"))
 	locker := NewLocker(client)
 
 	// Without Redis running, acquire should fail with connection error
@@ -301,7 +302,8 @@ func TestLocker_AcquireErrors(t *testing.T) {
 func TestLocker_TryAcquireErrors(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test connection errors
+	client, _ := New(WithAddress("localhost:59999"))
 	locker := NewLocker(client)
 
 	// Without Redis running, TryAcquire should fail with connection error
@@ -314,7 +316,8 @@ func TestLocker_TryAcquireErrors(t *testing.T) {
 func TestLocker_WithLockError(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test connection errors
+	client, _ := New(WithAddress("localhost:59999"))
 	locker := NewLocker(client, WithLockRetryCount(1), WithLockRetryDelay(time.Millisecond))
 
 	fnCalled := false
@@ -335,7 +338,8 @@ func TestLocker_WithLockError(t *testing.T) {
 func TestLocker_AcquireWithRetry_ContextCancel(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test connection errors
+	client, _ := New(WithAddress("localhost:59999"))
 	locker := NewLocker(client, WithLockRetryCount(1000), WithLockRetryDelay(time.Millisecond))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -350,7 +354,8 @@ func TestLocker_AcquireWithRetry_ContextCancel(t *testing.T) {
 func TestLocker_AcquireWithRetryAndTTL(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test connection errors
+	client, _ := New(WithAddress("localhost:59999"))
 	locker := NewLocker(client, WithLockRetryCount(2), WithLockRetryDelay(time.Millisecond))
 
 	// Without Redis, should fail after retries
@@ -363,7 +368,8 @@ func TestLocker_AcquireWithRetryAndTTL(t *testing.T) {
 func TestLocker_TryAcquireWithTTL(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test connection errors
+	client, _ := New(WithAddress("localhost:59999"))
 	locker := NewLocker(client)
 
 	// Without Redis, should return error
@@ -376,7 +382,8 @@ func TestLocker_TryAcquireWithTTL(t *testing.T) {
 func TestLocker_WithLockAndTTL(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test connection errors
+	client, _ := New(WithAddress("localhost:59999"))
 	locker := NewLocker(client, WithLockRetryCount(1), WithLockRetryDelay(time.Millisecond))
 
 	fnCalled := false

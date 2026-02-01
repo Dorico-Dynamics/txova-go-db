@@ -374,9 +374,8 @@ func TestTxManager_Integration(t *testing.T) {
 		t.Fatalf("failed to create table: %v", err)
 	}
 
-	// Get underlying pgxPool to create TxManager
-	pgxPool := pool.(*pgxPool)
-	txMgr := NewTxManager(pgxPool.pool, WithMaxRetries(3))
+	// Create TxManager with the pool
+	txMgr := NewTxManager(pool, WithMaxRetries(3))
 
 	t.Run("WithTx success", func(t *testing.T) {
 		err := txMgr.WithTx(ctx, func(tx Tx) error {
@@ -499,6 +498,7 @@ func TestMigrator_Integration(t *testing.T) {
 	// Create migrator with test migrations
 	migrator, err := NewMigrator(pool, testMigrations,
 		WithMigrationsTable("test_migrations"),
+		WithMigrationsPath("testdata/migrations"),
 		WithMigratorLogger(logging.Default()),
 	)
 	if err != nil {
@@ -682,7 +682,7 @@ func TestQueryBuilder_Integration(t *testing.T) {
 	t.Run("Select with Where", func(t *testing.T) {
 		sql, args, err := Select("users").
 			Columns("id", "name", "email").
-			Where("active", true).
+			Where("active = $1", true).
 			OrderByAsc("name").
 			Build()
 		if err != nil {
@@ -735,7 +735,7 @@ func TestQueryBuilder_Integration(t *testing.T) {
 	t.Run("Update", func(t *testing.T) {
 		sql, args, err := Update("users").
 			Set("active", false).
-			Where("name", "Alice").
+			Where("name = $2", "Alice").
 			Build()
 		if err != nil {
 			t.Fatalf("Build() error = %v", err)
@@ -752,7 +752,7 @@ func TestQueryBuilder_Integration(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		sql, args, err := Delete("users").
-			Where("name", "Charlie").
+			Where("name = $1", "Charlie").
 			Build()
 		if err != nil {
 			t.Fatalf("Build() error = %v", err)

@@ -275,17 +275,19 @@ func TestCache_GetOrSetJSON_MarshalError(t *testing.T) {
 func TestCache_GetOrSet_ComputeError(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to ensure we test the error path
+	// without interference from a running Redis instance
+	client, _ := New(WithAddress("localhost:59999"))
 	cache := NewCache(client)
 
 	computeErr := errors.New("compute failed")
-	_, err := cache.GetOrSet(context.Background(), "key", func(ctx context.Context) ([]byte, error) {
+	_, err := cache.GetOrSet(context.Background(), "compute-error-test-key", func(ctx context.Context) ([]byte, error) {
 		return nil, computeErr
 	})
 
-	// The error propagates from compute (may be wrapped in redis error if get fails first)
+	// The error propagates - either from failed get (no Redis) or from compute
 	if err == nil {
-		t.Error("GetOrSet should propagate compute error")
+		t.Error("GetOrSet should propagate error")
 	}
 }
 
@@ -342,40 +344,46 @@ func TestCache_SetWithTTL_ZeroTTL(t *testing.T) {
 func TestCache_GetOrSetWithTTL(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test error handling
+	client, _ := New(WithAddress("localhost:59999"))
 	cache := NewCache(client)
 
 	computeCalled := false
-	_, err := cache.GetOrSetWithTTL(context.Background(), "test-key", time.Hour, func(ctx context.Context) ([]byte, error) {
+	_, err := cache.GetOrSetWithTTL(context.Background(), "test-key-ttl", time.Hour, func(ctx context.Context) ([]byte, error) {
 		computeCalled = true
 		return []byte("computed"), nil
 	})
 
 	// With no Redis, get will fail and return error before compute
-	// This is correct behavior - we don't call compute if we can't check cache
-	if err == nil && !computeCalled {
-		t.Error("expected either error or compute to be called")
+	if err == nil {
+		t.Error("expected error when Redis is unavailable")
+	}
+	if computeCalled {
+		t.Error("compute should not be called when cache check fails")
 	}
 }
 
 func TestCache_GetOrSetJSONWithTTL(t *testing.T) {
 	t.Parallel()
 
-	client, _ := New()
+	// Use a non-existent Redis address to test error handling
+	client, _ := New(WithAddress("localhost:59999"))
 	cache := NewCache(client)
 
 	var dest testCacheData
 	computeCalled := false
 
-	err := cache.GetOrSetJSONWithTTL(context.Background(), "test-key", time.Hour, &dest, func(ctx context.Context) (any, error) {
+	err := cache.GetOrSetJSONWithTTL(context.Background(), "test-key-json-ttl", time.Hour, &dest, func(ctx context.Context) (any, error) {
 		computeCalled = true
 		return testCacheData{ID: 42, Name: "computed"}, nil
 	})
 
 	// With no Redis, get will fail and return error before compute
-	// This is correct behavior - we don't call compute if we can't check cache
-	if err == nil && !computeCalled {
-		t.Error("expected either error or compute to be called")
+	if err == nil {
+		t.Error("expected error when Redis is unavailable")
+	}
+	if computeCalled {
+		t.Error("compute should not be called when cache check fails")
 	}
 }
 
