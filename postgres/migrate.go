@@ -26,6 +26,10 @@ type MigratorConfig struct {
 	// Default: 15 seconds
 	LockTimeout time.Duration
 
+	// MigrationsPath is the path within the fs.FS where migration files are located.
+	// Default: "." (root of the filesystem)
+	MigrationsPath string
+
 	// Logger is the logger for migration events.
 	Logger *logging.Logger
 }
@@ -33,9 +37,10 @@ type MigratorConfig struct {
 // DefaultMigratorConfig returns a default configuration.
 func DefaultMigratorConfig() MigratorConfig {
 	return MigratorConfig{
-		TableName:   "schema_migrations",
-		LockTimeout: 15 * time.Second,
-		Logger:      nil,
+		TableName:      "schema_migrations",
+		LockTimeout:    15 * time.Second,
+		MigrationsPath: ".",
+		Logger:         nil,
 	}
 }
 
@@ -60,6 +65,13 @@ func WithLockTimeout(timeout time.Duration) MigratorOption {
 func WithMigratorLogger(logger *logging.Logger) MigratorOption {
 	return func(c *MigratorConfig) {
 		c.Logger = logger
+	}
+}
+
+// WithMigrationsPath sets the path within the fs.FS where migration files are located.
+func WithMigrationsPath(path string) MigratorOption {
+	return func(c *MigratorConfig) {
+		c.MigrationsPath = path
 	}
 }
 
@@ -88,7 +100,7 @@ func NewMigrator(pool *pgxpool.Pool, migrations fs.FS, opts ...MigratorOption) (
 	}
 
 	// Create source driver from fs.FS
-	sourceDriver, err := iofs.New(migrations, ".")
+	sourceDriver, err := iofs.New(migrations, config.MigrationsPath)
 	if err != nil {
 		return nil, fmt.Errorf("creating migration source: %w", err)
 	}
