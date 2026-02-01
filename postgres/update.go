@@ -83,63 +83,87 @@ func (u *UpdateBuilder) Returning(columns ...string) *UpdateBuilder {
 	return u
 }
 
-// Build generates the SQL query and returns it with the arguments.
-func (u *UpdateBuilder) Build() (string, []any, error) {
-	// Validate table name
+// validateUpdate checks that the update has valid table and SET clause.
+func (u *UpdateBuilder) validateUpdate() error {
 	if err := validateTableName(u.table); err != nil {
-		return "", nil, err
+		return err
 	}
-
-	// Validate SET clause
 	if len(u.sets) == 0 {
-		return "", nil, fmt.Errorf("no columns specified for update")
+		return fmt.Errorf("no columns specified for update")
 	}
-
-	// Validate columns if allowlist is enabled
 	for _, s := range u.sets {
 		if err := u.validateColumnName(s.column); err != nil {
-			return "", nil, err
+			return err
 		}
 	}
 
-	var args []any
-	argIndex := 1
+	// Validate RETURNING columns
+	for _, col := range u.returning {
+		if err := u.validateColumnName(col); err != nil {
+			return fmt.Errorf("invalid returning column: %q", col)
+		}
+	}
 
-	var sb strings.Builder
+	return nil
+}
 
-	// UPDATE clause
-	sb.WriteString("UPDATE ")
-	sb.WriteString(u.table)
-	sb.WriteString(" SET ")
-
-	// SET clause
+// buildSetClause generates the SET portion and returns args and next arg index.
+func (u *UpdateBuilder) buildSetClause(argIndex int) (string, []any, int) {
+	args := make([]any, 0, len(u.sets))
 	setParts := make([]string, len(u.sets))
 	for i, s := range u.sets {
 		setParts[i] = fmt.Sprintf("%s = $%d", s.column, argIndex)
 		args = append(args, s.value)
 		argIndex++
 	}
-	sb.WriteString(strings.Join(setParts, ", "))
+	return strings.Join(setParts, ", "), args, argIndex
+}
 
-	// WHERE clause
-	if len(u.where) > 0 {
-		sb.WriteString(" WHERE ")
-		for i, w := range u.where {
-			if i > 0 {
-				if w.isOr {
-					sb.WriteString(" OR ")
-				} else {
-					sb.WriteString(" AND ")
-				}
+// buildWhereClause generates the WHERE portion and returns args and next arg index.
+func (u *UpdateBuilder) buildWhereClause(argIndex int) (string, []any, int) {
+	if len(u.where) == 0 {
+		return "", nil, argIndex
+	}
+	var sb strings.Builder
+	var args []any
+	sb.WriteString(" WHERE ")
+	for i, w := range u.where {
+		if i > 0 {
+			if w.isOr {
+				sb.WriteString(" OR ")
+			} else {
+				sb.WriteString(" AND ")
 			}
-			condition, newIndex := replacePlaceholders(w.condition, argIndex)
-			sb.WriteString(condition)
-			args = append(args, w.args...)
-			argIndex = newIndex
 		}
+		condition, newIndex := replacePlaceholders(w.condition, argIndex)
+		sb.WriteString(condition)
+		args = append(args, w.args...)
+		argIndex = newIndex
+	}
+	return sb.String(), args, argIndex
+}
+
+// Build generates the SQL query and returns it with the arguments.
+func (u *UpdateBuilder) Build() (string, []any, error) {
+	if err := u.validateUpdate(); err != nil {
+		return "", nil, err
 	}
 
-	// RETURNING clause
+	var sb strings.Builder
+	sb.WriteString("UPDATE ")
+	sb.WriteString(u.table)
+	sb.WriteString(" SET ")
+
+	setClause, setArgs, argIndex := u.buildSetClause(1)
+	sb.WriteString(setClause)
+
+	whereClause, whereArgs, _ := u.buildWhereClause(argIndex)
+	sb.WriteString(whereClause)
+
+	args := make([]any, 0, len(setArgs)+len(whereArgs))
+	args = append(args, setArgs...)
+	args = append(args, whereArgs...)
+
 	if len(u.returning) > 0 {
 		sb.WriteString(" RETURNING ")
 		sb.WriteString(strings.Join(u.returning, ", "))

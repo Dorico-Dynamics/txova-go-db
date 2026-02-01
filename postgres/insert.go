@@ -87,52 +87,62 @@ func (i *InsertBuilder) OnConflictConstraintDoNothing(constraint string) *Insert
 	return i
 }
 
-// Build generates the SQL query and returns it with the arguments.
-func (i *InsertBuilder) Build() (string, []any, error) {
-	// Validate table name
+// validateInsert checks that the insert has valid table, columns, and values.
+func (i *InsertBuilder) validateInsert() error {
 	if err := validateTableName(i.table); err != nil {
-		return "", nil, err
+		return err
 	}
-
-	// Validate columns
 	if len(i.columns) == 0 {
-		return "", nil, fmt.Errorf("no columns specified for insert")
+		return fmt.Errorf("no columns specified for insert")
 	}
-
-	// Validate columns if allowlist is enabled
 	for _, col := range i.columns {
 		if err := i.validateColumnName(col); err != nil {
-			return "", nil, err
+			return err
 		}
 	}
-
-	// Validate values
 	if len(i.values) == 0 {
-		return "", nil, fmt.Errorf("no values specified for insert")
+		return fmt.Errorf("no values specified for insert")
 	}
-
-	// Validate each row has correct number of values
 	for idx, row := range i.values {
 		if len(row) != len(i.columns) {
-			return "", nil, fmt.Errorf("row %d has %d values but %d columns specified",
-				idx, len(row), len(i.columns))
+			return fmt.Errorf("row %d has %d values but %d columns specified", idx, len(row), len(i.columns))
 		}
 	}
 
-	var args []any
+	// Validate RETURNING columns
+	for _, col := range i.returning {
+		if err := i.validateColumnName(col); err != nil {
+			return fmt.Errorf("invalid returning column: %q", col)
+		}
+	}
+
+	// Validate ON CONFLICT identifiers
+	if i.onConflict != nil {
+		if i.onConflict.constraint != "" {
+			if err := validateTableName(i.onConflict.constraint); err != nil {
+				return fmt.Errorf("invalid on conflict constraint: %q", i.onConflict.constraint)
+			}
+		}
+		for _, col := range i.onConflict.columns {
+			if err := i.validateColumnName(col); err != nil {
+				return fmt.Errorf("invalid on conflict column: %q", col)
+			}
+		}
+	}
+
+	return nil
+}
+
+// buildValuesClause generates the VALUES portion and collects arguments.
+func (i *InsertBuilder) buildValuesClause() (string, []any) {
+	totalArgs := 0
+	for _, row := range i.values {
+		totalArgs += len(row)
+	}
+	args := make([]any, 0, totalArgs)
 	argIndex := 1
-
-	var sb strings.Builder
-
-	// INSERT INTO clause
-	sb.WriteString("INSERT INTO ")
-	sb.WriteString(i.table)
-	sb.WriteString(" (")
-	sb.WriteString(strings.Join(i.columns, ", "))
-	sb.WriteString(") VALUES ")
-
-	// VALUES clause
 	valueParts := make([]string, len(i.values))
+
 	for rowIdx, row := range i.values {
 		placeholders := make([]string, len(row))
 		for colIdx := range row {
@@ -142,25 +152,48 @@ func (i *InsertBuilder) Build() (string, []any, error) {
 		valueParts[rowIdx] = "(" + strings.Join(placeholders, ", ") + ")"
 		args = append(args, row...)
 	}
-	sb.WriteString(strings.Join(valueParts, ", "))
 
-	// ON CONFLICT clause
-	if i.onConflict != nil {
-		sb.WriteString(" ON CONFLICT")
-		if i.onConflict.constraint != "" {
-			sb.WriteString(" ON CONSTRAINT ")
-			sb.WriteString(i.onConflict.constraint)
-		} else if len(i.onConflict.columns) > 0 {
-			sb.WriteString(" (")
-			sb.WriteString(strings.Join(i.onConflict.columns, ", "))
-			sb.WriteString(")")
-		}
-		if i.onConflict.doNothing {
-			sb.WriteString(" DO NOTHING")
-		}
+	return strings.Join(valueParts, ", "), args
+}
+
+// buildOnConflictClause generates the ON CONFLICT portion.
+func (i *InsertBuilder) buildOnConflictClause() string {
+	if i.onConflict == nil {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString(" ON CONFLICT")
+	if i.onConflict.constraint != "" {
+		sb.WriteString(" ON CONSTRAINT ")
+		sb.WriteString(i.onConflict.constraint)
+	} else if len(i.onConflict.columns) > 0 {
+		sb.WriteString(" (")
+		sb.WriteString(strings.Join(i.onConflict.columns, ", "))
+		sb.WriteString(")")
+	}
+	if i.onConflict.doNothing {
+		sb.WriteString(" DO NOTHING")
+	}
+	return sb.String()
+}
+
+// Build generates the SQL query and returns it with the arguments.
+func (i *InsertBuilder) Build() (string, []any, error) {
+	if err := i.validateInsert(); err != nil {
+		return "", nil, err
 	}
 
-	// RETURNING clause
+	valuesClause, args := i.buildValuesClause()
+
+	var sb strings.Builder
+	sb.WriteString("INSERT INTO ")
+	sb.WriteString(i.table)
+	sb.WriteString(" (")
+	sb.WriteString(strings.Join(i.columns, ", "))
+	sb.WriteString(") VALUES ")
+	sb.WriteString(valuesClause)
+	sb.WriteString(i.buildOnConflictClause())
+
 	if len(i.returning) > 0 {
 		sb.WriteString(" RETURNING ")
 		sb.WriteString(strings.Join(i.returning, ", "))
