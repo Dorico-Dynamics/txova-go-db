@@ -108,6 +108,28 @@ func (i *InsertBuilder) validateInsert() error {
 			return fmt.Errorf("row %d has %d values but %d columns specified", idx, len(row), len(i.columns))
 		}
 	}
+
+	// Validate RETURNING columns
+	for _, col := range i.returning {
+		if err := i.validateColumnName(col); err != nil {
+			return fmt.Errorf("invalid returning column: %q", col)
+		}
+	}
+
+	// Validate ON CONFLICT identifiers
+	if i.onConflict != nil {
+		if i.onConflict.constraint != "" {
+			if err := validateTableName(i.onConflict.constraint); err != nil {
+				return fmt.Errorf("invalid on conflict constraint: %q", i.onConflict.constraint)
+			}
+		}
+		for _, col := range i.onConflict.columns {
+			if err := i.validateColumnName(col); err != nil {
+				return fmt.Errorf("invalid on conflict column: %q", col)
+			}
+		}
+	}
+
 	return nil
 }
 

@@ -231,7 +231,12 @@ func (m *txManager) calculateRetryDelay(attempt int) time.Duration {
 	}
 
 	// Add jitter (±25%) using math/rand which is acceptable for non-security purposes.
-	jitter := time.Duration(rand.Int64N(int64(delay) / 2)) // #nosec G404 -- not security-sensitive
+	// Guard against zero/very-small delays that would cause rand.Int64N to panic.
+	var jitter time.Duration
+	halfWindow := int64(delay) / 2
+	if halfWindow > 0 {
+		jitter = time.Duration(rand.Int64N(halfWindow)) // #nosec G404 -- not security-sensitive
+	}
 	delay = delay - delay/4 + jitter
 
 	return delay

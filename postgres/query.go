@@ -322,6 +322,29 @@ func (s *SelectBuilder) validateSelect() error {
 			}
 		}
 	}
+
+	// Validate GROUP BY entries
+	for _, entry := range s.groupBy {
+		entry = strings.TrimSpace(entry)
+		if entry == "" || entry == "*" {
+			continue
+		}
+		if err := s.validateColumnName(entry); err != nil {
+			return fmt.Errorf("invalid group by column: %q", entry)
+		}
+	}
+
+	// Validate ORDER BY entries
+	for _, entry := range s.orderBy {
+		col := strings.TrimSpace(entry.column)
+		if col == "" || col == "*" {
+			continue
+		}
+		if err := s.validateColumnName(col); err != nil {
+			return fmt.Errorf("invalid order by column: %q", col)
+		}
+	}
+
 	return nil
 }
 
