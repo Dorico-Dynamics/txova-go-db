@@ -92,6 +92,23 @@ func (i *InsertBuilder) validateInsert() error {
 	if err := validateTableName(i.table); err != nil {
 		return err
 	}
+	if err := i.validateInsertColumns(); err != nil {
+		return err
+	}
+	if err := i.validateInsertValues(); err != nil {
+		return err
+	}
+	if err := i.validateReturningColumns(); err != nil {
+		return err
+	}
+	if err := i.validateOnConflict(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateInsertColumns validates the columns for the insert.
+func (i *InsertBuilder) validateInsertColumns() error {
 	if len(i.columns) == 0 {
 		return fmt.Errorf("no columns specified for insert")
 	}
@@ -100,6 +117,11 @@ func (i *InsertBuilder) validateInsert() error {
 			return err
 		}
 	}
+	return nil
+}
+
+// validateInsertValues validates that values match the column count.
+func (i *InsertBuilder) validateInsertValues() error {
 	if len(i.values) == 0 {
 		return fmt.Errorf("no values specified for insert")
 	}
@@ -108,28 +130,34 @@ func (i *InsertBuilder) validateInsert() error {
 			return fmt.Errorf("row %d has %d values but %d columns specified", idx, len(row), len(i.columns))
 		}
 	}
+	return nil
+}
 
-	// Validate RETURNING columns
+// validateReturningColumns validates the RETURNING columns.
+func (i *InsertBuilder) validateReturningColumns() error {
 	for _, col := range i.returning {
 		if err := i.validateColumnName(col); err != nil {
 			return fmt.Errorf("invalid returning column: %q", col)
 		}
 	}
+	return nil
+}
 
-	// Validate ON CONFLICT identifiers
-	if i.onConflict != nil {
-		if i.onConflict.constraint != "" {
-			if err := validateTableName(i.onConflict.constraint); err != nil {
-				return fmt.Errorf("invalid on conflict constraint: %q", i.onConflict.constraint)
-			}
-		}
-		for _, col := range i.onConflict.columns {
-			if err := i.validateColumnName(col); err != nil {
-				return fmt.Errorf("invalid on conflict column: %q", col)
-			}
+// validateOnConflict validates the ON CONFLICT identifiers.
+func (i *InsertBuilder) validateOnConflict() error {
+	if i.onConflict == nil {
+		return nil
+	}
+	if i.onConflict.constraint != "" {
+		if err := validateTableName(i.onConflict.constraint); err != nil {
+			return fmt.Errorf("invalid on conflict constraint: %q", i.onConflict.constraint)
 		}
 	}
-
+	for _, col := range i.onConflict.columns {
+		if err := i.validateColumnName(col); err != nil {
+			return fmt.Errorf("invalid on conflict column: %q", col)
+		}
+	}
 	return nil
 }
 
