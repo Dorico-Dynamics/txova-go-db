@@ -1,232 +1,170 @@
 # txova-go-db
 
-Database utilities for PostgreSQL and Redis, providing connection management, transactions, query building, migrations, caching, and distributed locking.
+Database utilities for PostgreSQL and Redis, providing connection management, transactions, query building, migrations, caching, sessions, distributed locking, and rate limiting.
 
 ## Overview
 
-`txova-go-db` provides comprehensive database utilities for Txova services, including PostgreSQL connection pooling with pgx, Redis caching patterns, distributed locking, and database migration management.
+`txova-go-db` provides comprehensive database utilities for Txova services, including PostgreSQL connection pooling with pgx, type-safe query builders, transaction management with automatic retry, Redis caching patterns, distributed locking, session management, and rate limiting.
 
-**Module:** `github.com/txova/txova-go-db`
+**Module:** `github.com/Dorico-Dynamics/txova-go-db`
 
 ## Features
 
-- **PostgreSQL Connection Pooling** - pgxpool with health checks and graceful shutdown
-- **Transaction Management** - Automatic rollback on error/panic
-- **Query Builder** - Safe parameterized query construction
-- **Migrations** - golang-migrate integration
-- **Redis Caching** - Get/Set with TTL, get-or-compute pattern
-- **Distributed Locking** - Redis-based locks with ownership
-- **Rate Limiting** - Redis-backed rate limit tracking
-- **Session Store** - Redis session management
+### PostgreSQL
+- **Connection Pooling** - pgxpool with health checks, graceful shutdown, and slow query logging
+- **Transaction Management** - Auto rollback/commit, serialization retry, nested transactions via savepoints
+- **Query Builders** - Type-safe INSERT, SELECT, UPDATE, DELETE with parameterized queries
+- **Column Allowlists** - Security validation to prevent SQL injection via dynamic columns
+- **Migrations** - Embedded filesystem support with golang-migrate
+- **Error Handling** - Structured errors with PostgreSQL-specific details
+
+### Redis
+- **Multiple Modes** - Standalone, Cluster, and Sentinel support
+- **Caching** - Get/Set with TTL, JSON support, bulk operations, cache-aside pattern
+- **Sessions** - User session management with device tracking
+- **Distributed Locking** - Redis-based locks with ownership verification
+- **Rate Limiting** - Fixed window and sliding window algorithms
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| `postgres` | PostgreSQL connection and query utilities |
-| `redis` | Redis client and caching utilities |
+| `postgres` | PostgreSQL connection, transactions, query builders, migrations, errors |
+| `redis` | Redis client, caching, sessions, locking, rate limiting |
 
 ## Installation
 
 ```bash
-go get github.com/txova/txova-go-db
+go get github.com/Dorico-Dynamics/txova-go-db
 ```
 
-## Usage
+## Quick Start
 
-### PostgreSQL Connection
+### PostgreSQL
 
 ```go
-import "github.com/txova/txova-go-db/postgres"
+import "github.com/Dorico-Dynamics/txova-go-db/postgres"
 
-pool, err := postgres.NewPool(postgres.Config{
-    URL:             "postgres://user:pass@localhost/txova",
-    MaxConnections:  25,
-    MinConnections:  5,
-    ConnectTimeout:  5 * time.Second,
-})
+// Create pool
+pool, err := postgres.NewPool(
+    postgres.WithConnString("postgres://user:pass@localhost/db"),
+    postgres.WithMaxConns(25),
+)
 defer pool.Close()
 
-// Health check
-if err := pool.Ping(ctx); err != nil {
-    log.Fatal("Database unavailable")
-}
-```
-
-### Transactions
-
-```go
-import "github.com/txova/txova-go-db/postgres"
-
-err := postgres.WithTx(ctx, pool, func(tx pgx.Tx) error {
-    // All operations in transaction
-    _, err := tx.Exec(ctx, "INSERT INTO users ...")
-    if err != nil {
-        return err // Auto rollback
-    }
-    
-    _, err = tx.Exec(ctx, "INSERT INTO profiles ...")
-    return err // Commit if nil, rollback otherwise
-})
-```
-
-### Query Builder
-
-```go
-import "github.com/txova/txova-go-db/postgres"
-
+// Query builder
 query := postgres.Select("users").
     Columns("id", "name", "email").
     Where("status = ?", "active").
-    Where("created_at > ?", cutoff).
-    OrderBy("created_at DESC").
-    Limit(20).
-    Offset(40)
+    OrderByDesc("created_at").
+    Limit(20)
 
-sql, args := query.Build()
-// sql: SELECT id, name, email FROM users WHERE status = $1 AND created_at > $2 ORDER BY created_at DESC LIMIT 20 OFFSET 40
-```
+sql, args, err := query.Build()
+rows, err := pool.Query(ctx, sql, args...)
 
-### Migrations
-
-```go
-import "github.com/txova/txova-go-db/postgres"
-
-migrator := postgres.NewMigrator(postgres.MigratorConfig{
-    DatabaseURL:    dbURL,
-    MigrationsPath: "file://migrations",
+// Transactions with auto-retry
+txMgr := postgres.NewTxManager(pool)
+err := txMgr.WithTx(ctx, func(tx postgres.Tx) error {
+    _, err := tx.Exec(ctx, "INSERT INTO users ...", args...)
+    return err // nil = commit, error = rollback
 })
-
-// Apply all pending migrations
-if err := migrator.Up(); err != nil {
-    log.Fatal(err)
-}
-
-// Rollback last migration
-if err := migrator.Down(1); err != nil {
-    log.Fatal(err)
-}
 ```
 
-### Redis Caching
+### Redis
 
 ```go
-import "github.com/txova/txova-go-db/redis"
+import "github.com/Dorico-Dynamics/txova-go-db/redis"
 
-cache := redis.NewCache(redisClient)
+// Create client
+client, err := redis.New(
+    redis.WithAddress("localhost:6379"),
+    redis.WithPoolSize(10),
+)
+defer client.Close()
 
-// Set with TTL
-cache.Set(ctx, "user:profile:123", user, 15*time.Minute)
-
-// Get
+// Caching with cache-aside pattern
+cache := redis.NewCache(client, redis.WithDefaultTTL(15*time.Minute))
 var user User
-found, err := cache.Get(ctx, "user:profile:123", &user)
-
-// Get or compute
-user, err := cache.GetOrSet(ctx, "user:profile:123", 15*time.Minute, func() (*User, error) {
-    return userRepo.FindByID(ctx, userID)
-})
-```
-
-### Distributed Locking
-
-```go
-import "github.com/txova/txova-go-db/redis"
-
-locker := redis.NewLocker(redisClient)
-
-// Acquire lock with timeout
-err := locker.WithLock(ctx, "ride:assign:123", 30*time.Second, func() error {
-    // Exclusive access to ride assignment
-    return assignDriver(ctx, rideID)
-})
-```
-
-### Rate Limiting
-
-```go
-import "github.com/txova/txova-go-db/redis"
-
-limiter := redis.NewRateLimiter(redisClient)
-
-result, err := limiter.Allow(ctx, redis.RateLimitConfig{
-    Key:    "ratelimit:api:user123",
-    Limit:  100,
-    Window: time.Minute,
+err := cache.GetOrSetJSON(ctx, "user:123", &user, func(ctx context.Context) (any, error) {
+    return userRepo.FindByID(ctx, "123")
 })
 
+// Distributed locking
+locker := redis.NewLocker(client)
+err := locker.WithLock(ctx, "resource:123", func(ctx context.Context) error {
+    return processExclusively(ctx)
+})
+
+// Rate limiting
+limiter := redis.NewRateLimiter(client,
+    redis.WithRateLimitMax(100),
+    redis.WithRateLimitWindow(time.Minute),
+)
+result, err := limiter.Allow(ctx, "user:123")
 if !result.Allowed {
-    // Rate limited
-    fmt.Printf("Retry after: %v\n", result.ResetAt)
+    return fmt.Errorf("rate limited, reset at %v", result.ResetAt)
 }
 ```
 
-### Session Store
+## Documentation
+
+See [USAGE.md](USAGE.md) for complete API documentation and examples.
+
+## Error Handling
+
+Both packages provide structured error types that integrate with `txova-go-core`:
 
 ```go
-import "github.com/txova/txova-go-db/redis"
+// PostgreSQL
+if postgres.IsNotFound(err) { /* ... */ }
+if postgres.IsDuplicate(err) { /* ... */ }
 
-sessions := redis.NewSessionStore(redisClient)
+// Redis  
+if redis.IsConnection(err) { /* ... */ }
+if redis.IsTimeout(err) { /* ... */ }
 
-// Create session
-session := sessions.Create(ctx, redis.SessionData{
-    UserID:     userID,
-    DeviceID:   deviceID,
-    DeviceInfo: "iPhone 15, iOS 18",
-    IPAddress:  clientIP,
-})
-
-// Get session
-session, err := sessions.Get(ctx, sessionID)
-
-// List user sessions
-sessions, err := sessions.ListByUser(ctx, userID)
-
-// Delete session
-sessions.Delete(ctx, sessionID)
+// Works with txova-go-core
+if coreerrors.IsNotFound(err) { /* ... */ }
+if coreerrors.IsConflict(err) { /* ... */ }
 ```
-
-## Cache Key Conventions
-
-| Pattern | Example | Description |
-|---------|---------|-------------|
-| `{service}:{entity}:{id}` | `user:profile:uuid` | Single entity |
-| `{service}:{entity}:list:{params}` | `ride:history:user:uuid:page:1` | List query |
-| `{service}:config:{key}` | `pricing:config:maputo` | Configuration |
-
-## Error Types
-
-| Error | Description |
-|-------|-------------|
-| `ErrNotFound` | Record not found |
-| `ErrDuplicate` | Unique constraint violation |
-| `ErrForeignKey` | Foreign key violation |
-| `ErrConnection` | Database connection error |
-| `ErrTimeout` | Query timeout |
 
 ## Dependencies
 
 **Internal:**
-- `txova-go-types`
-- `txova-go-core`
+- `github.com/Dorico-Dynamics/txova-go-core`
 
 **External:**
 - `github.com/jackc/pgx/v5` - PostgreSQL driver
 - `github.com/redis/go-redis/v9` - Redis client
-- `github.com/golang-migrate/migrate/v4` - Migrations
+- `github.com/golang-migrate/migrate/v4` - Database migrations
 
 ## Development
 
 ### Requirements
 
-- Go 1.25+
-- PostgreSQL 18+
-- Redis 8+
+- Go 1.24+
+- PostgreSQL 16+
+- Redis 7+
 
 ### Testing
 
 ```bash
+# Unit tests
 go test ./...
+
+# With race detection
+go test -race ./...
+
+# Integration tests (requires databases)
+go test -tags=integration ./...
+```
+
+### Linting
+
+```bash
+golangci-lint run ./...
+gosec ./...
+go vet ./...
 ```
 
 ### Test Coverage Target
