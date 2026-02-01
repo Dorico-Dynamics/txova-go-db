@@ -96,6 +96,14 @@ func (u *UpdateBuilder) validateUpdate() error {
 			return err
 		}
 	}
+
+	// Validate RETURNING columns
+	for _, col := range u.returning {
+		if err := u.validateColumnName(col); err != nil {
+			return fmt.Errorf("invalid returning column: %q", col)
+		}
+	}
+
 	return nil
 }
 
